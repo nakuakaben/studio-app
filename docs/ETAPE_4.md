@@ -191,12 +191,15 @@ le nettoyage. Elle ne remplace pas un désinstalleur de produit. Les sources
 restées dans `studio-installer-source-*` peuvent ensuite être retirées du dossier
 temporaire après inspection ; aucune clé privée durable n’y est enregistrée.
 
-Démonstration réelle réalisée sur macOS : clic INSTALLER sur la carte, réception
-HTTPS affichée à 39 %, confirmation native de la version 0.0.1, clic OUVRIR et
-vérification du témoin `Studio App Installer Test 0.0.1 launched`, puis nettoyage.
-Quatre captures sont préparées localement ; leur publication dans cette PR reste
-soumise à l’autorisation explicite du propriétaire. Aucun résultat de simulation
-n’est utilisé comme preuve.
+Captures de la session macOS réelle :
+
+| Avant | HTTPS en cours | Détectée |
+| --- | --- | --- |
+| ![Avant](screenshots/installer/01-before.png) | ![Progression](screenshots/installer/02-progress.png) | ![Installée](screenshots/installer/03-installed.png) |
+
+Le lancement depuis OUVRIR est documenté par
+[la capture après lancement](screenshots/installer/04-opened.png) et le témoin de
+la sonde, vérifié avant nettoyage. Aucun résultat de simulation n’est utilisé.
 
 ## Validation automatisée
 
