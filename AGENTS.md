@@ -4,6 +4,7 @@
 Créer **Studio App**, un launcher Rust natif, inspiré très fidèlement de l'ergonomie ArtCraft. Lire `docs/CAHIER_DES_CHARGES.md` avant toute modification.
 
 ## Règles
+- Studio App distribue notre propre gamme professionnelle : afficher uniquement les applications explicitement publiées au catalogue approuvé. Aucun inventaire universel ni ajout automatique de logiciels tiers. La détection native s'applique seulement aux identifiants référencés. OBS demeure un exemple technique facultatif, hors du catalogue par défaut. Ne pas inventer les identifiants ou versions de futurs logiciels.
 - Ne jamais réduire les cartes applicatives à une grille d'icônes.
 - Conserver des cartes complètes : logo, nom, résumé, version, état, action.
 - Le clic sur la carte ouvre une fiche détaillée intégrée, avec un en-tête coloré propre à chaque application.

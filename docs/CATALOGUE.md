@@ -4,6 +4,13 @@ Le launcher lit un manifeste JSON **au runtime**. Modifier ce fichier puis cliqu
 sur « Actualiser le catalogue » suffit pour ajouter, modifier ou retirer une
 application. Ni recompilation, ni serveur applicatif spécifique ne sont nécessaires.
 
+Le catalogue approuvé définit **notre propre gamme professionnelle**, pas un
+inventaire des logiciels du poste. Seules ses entrées alimentent la bibliothèque.
+La détection ne crée jamais d'entrée et GitHub n'ajoute aucun logiciel automatiquement.
+OBS reste un exemple technique facultatif dans `obs-config.json`, distinct du
+catalogue par défaut. Les noms, IDs et versions des huit démonstrations sont fictifs ;
+ils ne constituent pas les identifiants de nos futurs produits.
+
 ## Configuration locale de confiance
 
 La configuration est choisie dans cet ordre :
@@ -59,8 +66,9 @@ fictives connues du prototype ; il ne déclare aucune installation réelle.
 
 ## Ajouter une application
 
-1. Copier un objet de `catalog/obs-catalog.json` ou de `catalog/catalog.json`
-   dans le tableau `applications` du manifeste choisi.
+1. Préparer les métadonnées approuvées d'un logiciel de notre gamme dans le
+   tableau `applications`. Les exemples montrent la structure ; ne pas reprendre
+   leurs identifiants, versions ou règles pour un futur produit.
 2. Attribuer un `id` stable et unique : minuscules ASCII, chiffres, tirets,
    1 à 64 caractères, premier caractère alphanumérique. Le conserver lors des
    changements de nom ou de version.

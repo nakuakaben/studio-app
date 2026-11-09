@@ -1,5 +1,9 @@
 # Étape 2 — catalogue dynamique
 
+Précision produit de l'étape 3.1 : OBS cité ci-dessous est uniquement un exemple
+technique facultatif. Studio App distribue notre gamme et n'ajoute jamais
+automatiquement les logiciels tiers du poste. Voir le cahier des charges à jour.
+
 Branche : `feat/dynamic-catalog`, issue de `dev` au commit
 `702ef4ce9371525e30674d09f604876897bb20a8` (fusion de l’étape 1).
 Les consignes `AGENTS.md`, le cahier des charges et le bilan de l’étape 1 ont été

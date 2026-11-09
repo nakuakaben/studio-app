@@ -302,17 +302,15 @@ impl StudioApp {
     }
     fn card(&mut self, ui: &mut egui::Ui, index: usize, width: f32) {
         let app = &self.apps[index];
-        let (bg, border, muted, blue) = theme::palette(ui.ctx());
-        let color = accent(app.color);
+        let (_, border, muted, blue) = theme::palette(ui.ctx());
+        let color = theme::hover::accent(ui.ctx(), app.color);
         let (rect, _) = ui.allocate_exact_size(egui::vec2(width, 306.0), Sense::hover());
         let response = ui.interact(rect, ui.id().with((&app.id, "card")), Sense::click());
         let installed = app.installed();
         let hovered = ui.rect_contains_pointer(rect);
-        let fill = if installed || hovered {
-            theme::tinted(ui.ctx(), app.color)
-        } else {
-            bg
-        };
+        let reduced = self.motion.reduced();
+        let progress = theme::hover::progress(ui.ctx(), &app.id, "grid", hovered, reduced);
+        let fill = theme::hover::fill(ui.ctx(), app.color, installed, progress);
         ui.painter().rect_filled(rect, 0, fill);
         ui.painter().rect_stroke(
             rect,
@@ -320,13 +318,7 @@ impl StudioApp {
             Stroke::new(1.0_f32, border),
             egui::StrokeKind::Inside,
         );
-        if hovered {
-            ui.painter().hline(
-                rect.x_range(),
-                rect.top() + 1.0,
-                Stroke::new(2.0_f32, color),
-            );
-        }
+        theme::hover::line(ui.painter(), rect, color, progress);
         let mut action = None;
         let mut strip = ui.new_child(
             egui::UiBuilder::new()
@@ -340,7 +332,12 @@ impl StudioApp {
         strip
             .add_sized(
                 [(width - 130.0).max(80.0), 22.0],
-                egui::Label::new(mono(version(app)).color(color)).truncate(),
+                egui::Label::new(mono(version(app)).color(if installed {
+                    color
+                } else {
+                    theme::hover::mix(muted, color, progress)
+                }))
+                .truncate(),
             )
             .on_hover_text(version(app));
         strip.with_layout(Layout::right_to_left(Align::Center), |ui| {
@@ -366,7 +363,15 @@ impl StudioApp {
         );
         body.spacing_mut().item_spacing.x = 10.0;
         body.horizontal(|ui| {
-            logo(ui, app, if hovered { 56.0 } else { 54.0 }, &self.images);
+            let (slot, _) = ui.allocate_exact_size(egui::vec2(54.0, 54.0), Sense::hover());
+            paint_logo(
+                ui.painter(),
+                theme::hover::logo_rect(slot, progress, reduced),
+                app,
+                &self.images,
+                &self.gray_logos,
+                if installed { 1.0 } else { progress },
+            );
             ui.vertical(|ui| {
                 if ui
                     .add(
@@ -460,21 +465,21 @@ impl StudioApp {
     }
     fn list_row(&mut self, ui: &mut egui::Ui, index: usize) {
         let app = &self.apps[index];
-        let (bg, border, muted, _) = theme::palette(ui.ctx());
+        let (_, border, muted, _) = theme::palette(ui.ctx());
         let wide = ui.available_width() > 880.0;
         let mut action = None;
+        let background = ui.painter().add(egui::Shape::Noop);
+        let mut logo_slot = None;
         let response = egui::Frame::new()
-            .fill(if app.installed() {
-                theme::tinted(ui.ctx(), app.color)
-            } else {
-                bg
-            })
             .stroke(Stroke::new(1.0_f32, border))
             .inner_margin(16)
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());
                 ui.horizontal(|ui| {
-                    logo(ui, app, 42.0, &self.images);
+                    logo_slot = Some(
+                        ui.allocate_exact_size(egui::vec2(42.0, 42.0), Sense::hover())
+                            .0,
+                    );
                     ui.vertical(|ui| {
                         if wide {
                             ui.set_width(170.0);
@@ -489,7 +494,11 @@ impl StudioApp {
                         {
                             action = Some(Action::Details);
                         }
-                        ui.label(mono(version(app)).color(accent(app.color)));
+                        ui.label(mono(version(app)).color(if app.installed() {
+                            theme::hover::accent(ui.ctx(), app.color)
+                        } else {
+                            muted
+                        }));
                     });
                     if wide {
                         ui.add_space(12.0);
@@ -516,9 +525,38 @@ impl StudioApp {
                 }
             })
             .response;
-        response.on_hover_text(
-            "Opérations simulées. Cliquez sur le nom ou sur … pour ouvrir la fiche.",
+        let hovered = ui.rect_contains_pointer(response.rect);
+        let reduced = self.motion.reduced();
+        let progress = theme::hover::progress(ui.ctx(), &app.id, "list", hovered, reduced);
+        ui.painter().set(
+            background,
+            egui::Shape::rect_filled(
+                response.rect,
+                0,
+                theme::hover::fill(ui.ctx(), app.color, app.installed(), progress),
+            ),
         );
+        theme::hover::line(
+            ui.painter(),
+            response.rect,
+            theme::hover::accent(ui.ctx(), app.color),
+            progress,
+        );
+        if let Some(slot) = logo_slot {
+            paint_logo(
+                ui.painter(),
+                theme::hover::logo_rect(slot, progress, reduced),
+                app,
+                &self.images,
+                &self.gray_logos,
+                if app.installed() { 1.0 } else { progress },
+            );
+        }
+        response.on_hover_text(if app.fictional {
+            "Opérations simulées. Cliquez sur le nom ou sur … pour ouvrir la fiche."
+        } else {
+            "Cliquez sur le nom ou sur … pour ouvrir la fiche."
+        });
         self.dispatch(index, action);
     }
 }

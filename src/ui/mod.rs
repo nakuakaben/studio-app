@@ -17,6 +17,7 @@ mod native_state;
 mod settings;
 
 pub struct StudioApp {
+    motion: theme::motion::Preference,
     apps: Vec<Application>,
     native_generation: u64,
     native_pending: bool,
@@ -35,6 +36,7 @@ pub struct StudioApp {
     catalog_origin: Option<Origin>,
     job: Option<Receiver<Event>>,
     images: HashMap<String, egui::TextureHandle>,
+    gray_logos: HashMap<String, egui::TextureHandle>,
     asset_errors: HashMap<String, String>,
 }
 
@@ -61,6 +63,7 @@ impl StudioApp {
 
     pub fn new(ctx: &egui::Context) -> Self {
         let mut app = Self::empty(ctx);
+        app.motion = theme::motion::Preference::start(ctx);
         app.refresh_catalog(ctx);
         app
     }
@@ -83,6 +86,7 @@ impl StudioApp {
             None => (Preferences::default(), None),
         };
         Self {
+            motion: Default::default(),
             apps: Vec::new(),
             native_generation: 0,
             native_pending: false,
@@ -101,6 +105,7 @@ impl StudioApp {
             catalog_origin: None,
             job: None,
             images: HashMap::new(),
+            gray_logos: HashMap::new(),
             asset_errors: HashMap::new(),
         }
     }
@@ -302,12 +307,42 @@ fn logo(
     images: &HashMap<String, egui::TextureHandle>,
 ) {
     let (rect, _) = ui.allocate_exact_size(egui::vec2(side, side), Sense::hover());
-    let p = ui.painter();
+    paint_logo(ui.painter(), rect, app, images, &HashMap::new(), 1.0);
+}
+
+fn paint_logo(
+    p: &egui::Painter,
+    rect: egui::Rect,
+    app: &Application,
+    images: &HashMap<String, egui::TextureHandle>,
+    grays: &HashMap<String, egui::TextureHandle>,
+    saturation: f32,
+) {
+    let side = rect.width();
     if let Some(texture) = app.logo.as_ref().and_then(|a| images.get(&a.source)) {
+        if saturation < 1.0 {
+            if let Some(gray) = app.logo.as_ref().and_then(|a| grays.get(&a.source)) {
+                gallery::paint_image(p, rect, gray);
+                let size = texture.size_vec2();
+                let scale = (rect.width() / size.x).min(rect.height() / size.y);
+                p.image(
+                    texture.id(),
+                    egui::Rect::from_center_size(rect.center(), size * scale),
+                    egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)),
+                    Color32::WHITE.gamma_multiply(saturation),
+                );
+                return;
+            }
+        }
         gallery::paint_image(p, rect, texture);
         return;
     }
-    p.rect_filled(rect, (side * 0.2) as u8, accent(app.color));
+    let color = accent(app.color);
+    p.rect_filled(
+        rect,
+        (side * 0.2) as u8,
+        theme::hover::mix(theme::hover::gray(color), color, saturation),
+    );
     p.line_segment(
         [
             rect.left_bottom() + egui::vec2(side * 0.15, -side * 0.12),
@@ -634,6 +669,45 @@ mod tests {
         assert_eq!(app.visible(), vec![0]);
         app.sort = Sort::Category;
         assert_eq!(app.visible(), vec![0]);
+    }
+    #[test]
+    fn hover_keeps_all_text_and_action_positions_fixed_in_grid_and_list_in_both_themes() {
+        for appearance in [Appearance::Dark, Appearance::Light] {
+            for view in [View::Grid, View::List] {
+                let ctx = egui::Context::default();
+                let mut app = StudioApp::test_app(&ctx);
+                app.preferences.appearance = appearance;
+                app.preferences.view = view;
+                app.query = "folio".into();
+                let mut before = frame(&mut app, &ctx, vec![]);
+                for _ in 0..3 {
+                    before = frame(&mut app, &ctx, vec![]);
+                }
+                let name = text_positions(&before, "Folio")[0];
+                let labels = [
+                    "Folio",
+                    "INSTALLER",
+                    "V1.5.0",
+                    "DISPONIBLE À L’INSTALLATION",
+                ];
+                let expected: Vec<_> = labels.iter().map(|s| text_positions(&before, s)).collect();
+                for _ in 0..20 {
+                    let during = frame(&mut app, &ctx, vec![egui::Event::PointerMoved(name)]);
+                    for (label, positions) in labels.iter().zip(&expected) {
+                        assert_eq!(
+                            text_positions(&during, label),
+                            *positions,
+                            "{label} shifted during hover"
+                        );
+                    }
+                }
+                assert_eq!(app.selected, None);
+                assert!(app.apps.iter().all(|a| !matches!(
+                    a.operation,
+                    Operation::SimulatedDownload { paused: false, .. }
+                )));
+            }
+        }
     }
     #[test]
     fn actual_local_metadata_is_never_labelled_as_simulated() {

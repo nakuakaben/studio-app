@@ -147,6 +147,27 @@ mod tests {
         assert!(app.native_status.contains("interrompue"));
     }
     #[test]
+    fn native_results_never_add_an_application_outside_the_catalogue() {
+        let ctx = egui::Context::default();
+        let mut app = real_app(&ctx);
+        let ids = app.apps.iter().map(|a| a.id.clone()).collect::<Vec<_>>();
+        let request = crate::native::worker::Request {
+            id: "unreferenced-third-party".into(),
+            rules: app.apps[0].detection.clone().unwrap(),
+        };
+        app.apply_native(crate::native::worker::Snapshot {
+            generation: 0,
+            entries: vec![(request, Default::default())],
+        });
+        assert_eq!(
+            app.apps.iter().map(|a| a.id.clone()).collect::<Vec<_>>(),
+            ids
+        );
+        assert!(app.apps[0].local.installations.is_empty());
+        let default = crate::catalog::parse(include_bytes!("../../catalog/catalog.json")).unwrap();
+        assert!(default.applications.iter().all(|a| a.id != "obs-studio"));
+    }
+    #[test]
     fn snapshots_match_generation_ids_and_rules_and_unknown_versions_are_installed() {
         let ctx = egui::Context::default();
         let mut app = real_app(&ctx);
