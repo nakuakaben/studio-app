@@ -9,18 +9,19 @@ use crate::{
     domain::{AppState, Application, Operation},
 };
 use eframe::egui::{self, Align, Color32, Layout, RichText, Sense, Stroke};
-use theme::{accent, mono, BG, BLUE, BORDER, MUTED, WHITE};
+use theme::{accent, mono, BG, BLUE, WHITE};
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Sort {
-    Name,
-    Category,
-}
+use crate::preferences::{Appearance, Language, Preferences, Sort, View};
+mod library;
+mod settings;
 
 pub struct StudioApp {
     apps: Vec<Application>,
     query: String,
     sort: Sort,
+    preferences: Preferences,
+    settings_open: bool,
+    preferences_path: Option<std::path::PathBuf>,
     selected: Option<usize>,
     slide: usize,
     notice: Option<String>,
@@ -32,6 +33,26 @@ pub struct StudioApp {
 }
 
 impl StudioApp {
+    /// State selection for the opt-in native screenshot harness only.
+    #[cfg(feature = "visual-qa")]
+    pub fn prepare_visual_qa(&mut self, state: &str) {
+        self.preferences_path = None;
+        self.preferences.appearance = if state.contains("light") {
+            Appearance::Light
+        } else {
+            Appearance::Dark
+        };
+        if state.contains("settings") {
+            self.settings_open = true;
+        }
+        if state.contains("list") {
+            self.preferences.view = View::List;
+        }
+        if state.contains("detail") && !self.apps.is_empty() {
+            self.select(0);
+        }
+    }
+
     pub fn new(ctx: &egui::Context) -> Self {
         let mut app = Self::empty(ctx);
         app.refresh_catalog(ctx);
@@ -40,13 +61,31 @@ impl StudioApp {
 
     fn empty(ctx: &egui::Context) -> Self {
         theme::apply(ctx);
+        let preferences_path = Preferences::path();
+        let (preferences, warning) = match preferences_path
+            .as_ref()
+            .filter(|p| p.exists())
+            .map(|p| Preferences::load(p))
+        {
+            Some(Ok(p)) => (p, None),
+            Some(Err(e)) => (
+                Preferences::default(),
+                Some(format!(
+                    "Préférences invalides : {e}. Valeurs par défaut utilisées."
+                )),
+            ),
+            None => (Preferences::default(), None),
+        };
         Self {
             apps: Vec::new(),
             query: String::new(),
-            sort: Sort::Name,
+            sort: preferences.sort,
+            preferences,
+            settings_open: false,
+            preferences_path,
             selected: None,
             slide: 0,
-            notice: None,
+            notice: warning,
             catalog_status: "Catalogue indisponible".into(),
             catalog_origin: None,
             job: None,
@@ -58,6 +97,9 @@ impl StudioApp {
     #[cfg(test)]
     fn test_app(ctx: &egui::Context) -> Self {
         let mut app = Self::empty(ctx);
+        app.preferences = Preferences::default();
+        app.preferences_path = None;
+        app.sort = Sort::Name;
         app.apps = crate::catalog::demonstration();
         app.catalog_origin = Some(Origin::Local);
         app.catalog_status = "Catalogue de test".into();
@@ -113,6 +155,7 @@ impl StudioApp {
     }
 
     pub fn show(&mut self, ctx: &egui::Context) {
+        self.apply_appearance(ctx);
         self.poll_catalog(ctx);
         let dt = ctx.input(|i| i.stable_dt);
         for app in &mut self.apps {
@@ -134,370 +177,17 @@ impl StudioApp {
                 self.navigate(false);
             }
         }
-        egui::TopBottomPanel::top("brand")
-            .frame(
-                egui::Frame::new()
-                    .fill(BG)
-                    .inner_margin(egui::Margin::symmetric(24, 18)),
-            )
-            .show(ctx, |ui| {
-                ui.horizontal_wrapped(|ui| {
-                    let (mark, _) = ui.allocate_exact_size(egui::vec2(22.0, 22.0), Sense::hover());
-                    for (x, y) in [(0.0, 0.0), (12.0, 0.0), (0.0, 12.0)] {
-                        ui.painter().rect_filled(
-                            egui::Rect::from_min_size(
-                                mark.min + egui::vec2(x, y),
-                                egui::vec2(9.0, 9.0),
-                            ),
-                            0,
-                            WHITE,
-                        );
-                    }
-                    ui.label(RichText::new("STUDIO APP").strong().size(23.0));
-                    ui.add_space(22.0);
-                    ui.label(mono("L’ATELIER DES CRÉATEURS"));
-                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        ui.label(mono("V0.1 / SIMULATION").color(BLUE));
-                    });
-                });
-            });
-        egui::TopBottomPanel::bottom("footer")
-            .frame(
-                egui::Frame::new()
-                    .fill(BG)
-                    .inner_margin(egui::Margin::symmetric(24, 12)),
-            )
-            .show(ctx, |ui| {
-                ui.horizontal_wrapped(|ui| {
-                    ui.label(mono("CATALOGUE DYNAMIQUE · OPÉRATIONS SIMULÉES"));
-                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        ui.label(mono("RUST / NATIF"));
-                    });
-                });
-            });
-        egui::CentralPanel::default()
-            .frame(egui::Frame::new().fill(BG).inner_margin(24))
-            .show(ctx, |ui| {
-                self.toolbar(ui);
-                ui.add_space(16.0);
-                ui.horizontal_wrapped(|ui| {
-                    if self.job.is_some() {
-                        ui.spinner();
-                    }
-                    ui.label(mono(&self.catalog_status));
-                    if ui
-                        .add_enabled(
-                            self.job.is_none(),
-                            egui::Button::new("ACTUALISER LE CATALOGUE"),
-                        )
-                        .clicked()
-                    {
-                        self.refresh_catalog(ctx);
-                    }
-                });
-                ui.add_space(10.0);
-                if let Some(notice) = self.notice.clone() {
-                    theme::outline().show(ui, |ui| {
-                        ui.horizontal_wrapped(|ui| {
-                            ui.label(RichText::new(notice).color(BLUE));
-                            if ui.button("FERMER").clicked() {
-                                self.notice = None;
-                            }
-                        });
-                    });
-                    ui.add_space(8.0);
-                }
-                egui::ScrollArea::vertical()
-                    .id_salt("library_scroll")
-                    .auto_shrink([false, false])
-                    .show(ui, |ui| {
-                        let indices = self.visible();
-                        if indices.is_empty() && !self.apps.is_empty() {
-                            ui.add_space(80.0);
-                            ui.heading("Aucune application trouvée");
-                            ui.label(
-                                RichText::new("Essayez un autre nom ou une catégorie.")
-                                    .color(MUTED),
-                            );
-                            if ui.button("EFFACER LA RECHERCHE").clicked() {
-                                self.query.clear();
-                            }
-                        }
-                        for installed in [true, false] {
-                            let group: Vec<_> = indices
-                                .iter()
-                                .copied()
-                                .filter(|&i| {
-                                    self.apps[i].displayed_installed_version().is_some()
-                                        == installed
-                                })
-                                .collect();
-                            if group.is_empty() {
-                                continue;
-                            }
-                            ui.add_space(10.0);
-                            ui.label(mono(if installed {
-                                "VOTRE ATELIER / ÉTATS SIMULÉS"
-                            } else {
-                                "À DÉCOUVRIR"
-                            }));
-                            ui.add_space(10.0);
-                            let columns = ((ui.available_width() / 320.0).floor() as usize).max(1);
-                            let width = ui.available_width() / columns as f32;
-                            for row in group.chunks(columns) {
-                                ui.horizontal_top(|ui| {
-                                    ui.spacing_mut().item_spacing.x = 0.0;
-                                    for &index in row {
-                                        self.card(ui, index, width);
-                                    }
-                                });
-                                ui.add_space(-10.0);
-                            }
-                            ui.add_space(30.0);
-                        }
-                    });
-            });
+        self.library(ctx);
         if let Some(index) = self.selected {
             self.details(ctx, index);
         }
-    }
-
-    fn toolbar(&mut self, ui: &mut egui::Ui) {
-        if ui.available_width() >= 1000.0 {
-            ui.horizontal(|ui| {
-                ui.label(mono("BIBLIOTHÈQUE"));
-                ui.label(mono(format!("/ {:02} APPLICATIONS", self.apps.len())));
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| self.controls(ui));
-            });
-        } else {
-            ui.label(mono(format!(
-                "BIBLIOTHÈQUE / {:02} APPLICATIONS",
-                self.apps.len()
-            )));
-            ui.horizontal_wrapped(|ui| self.controls(ui));
-        }
-    }
-
-    fn controls(&mut self, ui: &mut egui::Ui) {
-        ui.add(
-            egui::TextEdit::singleline(&mut self.query)
-                .hint_text("Rechercher une application…")
-                .desired_width(240.0_f32.min(ui.available_width().max(120.0)))
-                .margin(egui::vec2(12.0, 10.0)),
-        );
-        egui::ComboBox::from_id_salt("sort")
-            .selected_text(match self.sort {
-                Sort::Name => "Nom (A–Z)",
-                Sort::Category => "Catégorie",
-            })
-            .width(140.0)
-            .show_ui(ui, |ui| {
-                ui.selectable_value(&mut self.sort, Sort::Name, "Nom (A–Z)");
-                ui.selectable_value(&mut self.sort, Sort::Category, "Catégorie");
-            });
-        let count = self
-            .apps
-            .iter()
-            .filter(|a| a.state() == AppState::UpdateAvailable)
-            .count();
-        if ui
-            .add_enabled(
-                count > 0,
-                egui::Button::new(mono(format!("SIMULER LES MAJ ({count})")).color(WHITE)),
-            )
-            .clicked()
-        {
-            for app in &mut self.apps {
-                if app.state() == AppState::UpdateAvailable {
-                    demo::start(app);
-                }
-            }
-        }
-    }
-
-    fn card(&mut self, ui: &mut egui::Ui, index: usize, width: f32) {
-        let mut open = false;
-        let mut action = false;
-        let mut toggle_pause = false;
-        let mut cancel = false;
-        let app = &self.apps[index];
-        let color = accent(app.color);
-        let frame = egui::Frame::new()
-            .fill(if app.state() == AppState::UpdateAvailable {
-                theme::tint(app.color)
-            } else {
-                BG
-            })
-            .stroke(Stroke::new(1.0_f32, BORDER));
-        let card_response = ui.interact(
-            egui::Rect::from_min_size(ui.next_widget_position(), egui::vec2(width, 360.0)),
-            ui.id().with(&app.id).with("card"),
-            Sense::click(),
-        );
-        ui.allocate_ui_with_layout(
-            egui::vec2(width, 360.0),
-            Layout::top_down(Align::Min),
-            |ui| {
-                ui.set_width(width);
-                ui.spacing_mut().item_spacing.x = 10.0;
-                frame
-                    .show(ui, |ui| {
-                        ui.set_width(width - 2.0);
-                        ui.set_height(358.0);
-                        egui::Frame::new()
-                            .inner_margin(egui::Margin::symmetric(18, 11))
-                            .show(ui, |ui| {
-                                ui.horizontal(|ui| {
-                                    let version = match app.displayed_installed_version() {
-                                        Some(v) if v != app.available_version() => {
-                                            format!("{v} → {}", app.available_version())
-                                        }
-                                        _ => format!("V{}", app.available_version()),
-                                    };
-                                    ui.label(mono(version).color(color));
-                                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                                        open |= ui.small_button(mono("FICHE ↗")).clicked();
-                                    });
-                                });
-                            });
-                        ui.separator();
-                        egui::Frame::new().inner_margin(18).show(ui, |ui| {
-                            ui.horizontal(|ui| {
-                                logo(ui, app, 54.0, &self.images);
-                                ui.vertical(|ui| {
-                                    ui.add_space(1.0);
-                                    open |= ui
-                                        .add(
-                                            egui::Label::new(
-                                                RichText::new(&app.name).size(25.0).strong(),
-                                            )
-                                            .sense(Sense::click())
-                                            .truncate(),
-                                        )
-                                        .clicked();
-                                    ui.add(
-                                        egui::Label::new(
-                                            RichText::new(&app.category).color(MUTED).size(13.0),
-                                        )
-                                        .truncate(),
-                                    );
-                                });
-                            });
-                            ui.add_space(17.0);
-                            let status_color = match app.state() {
-                                AppState::UpdateAvailable => Color32::from_rgb(255, 199, 74),
-                                AppState::Error { .. } => Color32::from_rgb(255, 132, 116),
-                                _ => BLUE,
-                            };
-                            egui::Frame::new()
-                                .fill(BG)
-                                .stroke(Stroke::new(1.0_f32, BORDER))
-                                .inner_margin(egui::Margin::symmetric(6, 3))
-                                .show(ui, |ui| {
-                                    ui.label(
-                                        mono(app.state().label()).size(10.0).color(status_color),
-                                    );
-                                });
-                            ui.add_space(13.0);
-                            let (description_rect, _) = ui.allocate_exact_size(
-                                egui::vec2(ui.available_width(), 56.0),
-                                Sense::hover(),
-                            );
-                            let mut job = egui::text::LayoutJob::simple(
-                                app.short_description.clone(),
-                                egui::FontId::proportional(14.0),
-                                MUTED,
-                                description_rect.width(),
-                            );
-                            job.wrap.max_rows = 3;
-                            let galley = ui.painter().layout_job(job);
-                            ui.painter().galley(description_rect.min, galley, MUTED);
-                            ui.add(
-                                egui::Label::new(
-                                    mono(format!("{} · {}", app.publisher, app.release.published))
-                                        .size(10.0),
-                                )
-                                .truncate(),
-                            );
-                            ui.add_space(12.0);
-                            match &app.state() {
-                                AppState::Downloading { progress, paused } => {
-                                    ui.horizontal(|ui| {
-                                        ui.vertical(|ui| {
-                                            ui.set_width((width - 126.0).max(80.0));
-                                            ui.label(
-                                                mono(format!("SIMULÉ · {:.0}%", *progress * 100.0))
-                                                    .size(10.0),
-                                            );
-                                            ui.add(
-                                                egui::ProgressBar::new(*progress)
-                                                    .fill(color)
-                                                    .corner_radius(0)
-                                                    .desired_height(4.0),
-                                            );
-                                        });
-                                        toggle_pause = ui
-                                            .button(if *paused { "▶" } else { "Ⅱ" })
-                                            .on_hover_text("Reprendre / suspendre la simulation")
-                                            .clicked();
-                                        cancel = ui
-                                            .button("×")
-                                            .on_hover_text("Annuler la simulation")
-                                            .clicked();
-                                    });
-                                }
-                                AppState::Installing { progress } => {
-                                    ui.label(
-                                        mono(format!(
-                                            "INSTALLATION FICTIVE · {:.0}%",
-                                            *progress * 100.0
-                                        ))
-                                        .color(color),
-                                    );
-                                    ui.add(
-                                        egui::ProgressBar::new(*progress)
-                                            .fill(color)
-                                            .corner_radius(0)
-                                            .desired_height(4.0),
-                                    );
-                                }
-                                _ => {
-                                    action =
-                                        primary(ui, app.state().action(), ui.available_width())
-                                            .clicked();
-                                }
-                            }
-                        });
-                    })
-                    .response
-            },
-        );
-        if card_response
-            .on_hover_cursor(egui::CursorIcon::PointingHand)
-            .clicked()
-            && !action
-            && !toggle_pause
-            && !cancel
-        {
-            open = true;
-        }
-        if open {
-            self.select(index);
-        }
-        if action {
-            self.action(index);
-        }
-        if toggle_pause {
-            if let Operation::SimulatedDownload { paused, .. } = &mut self.apps[index].operation {
-                *paused = !*paused;
-            }
-        }
-        if cancel {
-            demo::cancel(&mut self.apps[index]);
+        if self.settings_open {
+            self.settings(ctx);
         }
     }
 
     fn details(&mut self, ctx: &egui::Context, index: usize) {
+        let (bg, border, muted, blue) = theme::palette(ctx);
         let mut close = false;
         let mut previous = false;
         let mut next = false;
@@ -505,13 +195,13 @@ impl StudioApp {
         let app = &self.apps[index];
         let color = accent(app.color);
         let size = ctx.content_rect().size();
-        let modal = egui::Modal::new(egui::Id::new("application_details")).frame(egui::Frame::new().fill(BG).stroke(Stroke::new(1.0_f32,BORDER))).show(ctx, |ui| {
+        let modal = egui::Modal::new(egui::Id::new("application_details")).frame(egui::Frame::new().fill(bg).stroke(Stroke::new(1.0_f32,border))).show(ctx, |ui| {
             ui.set_width((size.x - 64.0).clamp(320.0, 1140.0));
             ui.set_height(size.y - 100.0);
             let (line,_) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 2.0), Sense::hover());
             ui.painter().rect_filled(line, 0, color);
             egui::ScrollArea::vertical().id_salt(("detail_scroll", &app.id)).max_height(size.y - 100.0).show(ui, |ui| {
-                egui::Frame::new().fill(theme::tint(app.color)).inner_margin(24).show(ui, |ui| {
+                egui::Frame::new().fill(theme::tinted(ctx, app.color)).inner_margin(24).show(ui, |ui| {
                     ui.horizontal(|ui| {
                         ui.label(mono(if size.x < 650.0 { "APPLICATION" } else { if app.fictional { "DÉTAILS / APPLICATION FICTIVE" } else { "DÉTAILS DE L’APPLICATION" } }));
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
@@ -524,10 +214,10 @@ impl StudioApp {
                     ui.horizontal_top(|ui| {
                         logo(ui, app, if size.x < 650.0 {64.0} else {98.0}, &self.images);
                         ui.vertical(|ui| {
-                            ui.heading(RichText::new(&app.name).size(34.0).strong());
+                            ui.heading(theme::title(&app.name,34.0));
                             ui.label(&app.category);
-                            if let Some(notice) = &self.notice { ui.colored_label(BLUE, notice); }
-                            ui.label(RichText::new(match app.displayed_installed_version() { Some(v) => format!("{v} simulée / {} disponible", app.available_version()), None => format!("Version disponible {}", app.available_version()) }).color(MUTED).size(13.0));
+                            if let Some(notice) = &self.notice { ui.colored_label(blue, notice); }
+                            ui.label(RichText::new(match app.displayed_installed_version() { Some(v) => format!("{v} {} / {} disponible", if app.simulation.version.is_some() {"simulée"} else {"locale détectée"}, app.available_version()), None => format!("Version disponible {}", app.available_version()) }).color(muted).size(13.0));
                         });
                     });
                     ui.add_space(16.0);
@@ -587,7 +277,7 @@ impl eframe::App for StudioApp {
 fn primary(ui: &mut egui::Ui, text: &str, width: f32) -> egui::Response {
     ui.add_sized(
         [width, 38.0],
-        egui::Button::new(mono(text).strong().color(BG)).fill(WHITE),
+        egui::Button::new(mono(text).size(11.0).strong().color(BG)).fill(WHITE),
     )
 }
 
@@ -692,14 +382,18 @@ fn features(ui: &mut egui::Ui, app: &Application) {
     ui.label(mono("01 / FONCTIONNALITÉS ENVISAGÉES"));
     ui.add_space(10.0);
     for (i, feature) in app.features.iter().enumerate() {
-        theme::outline().show(ui, |ui| {
+        theme::outline(ui.ctx()).show(ui, |ui| {
             ui.set_width(ui.available_width());
             ui.horizontal(|ui| {
                 ui.label(mono(format!("{:02}", i + 1)).color(accent(app.color)));
                 ui.add_space(10.0);
                 ui.strong(&feature.title);
             });
-            ui.label(RichText::new(&feature.description).color(MUTED).size(14.0));
+            ui.label(
+                RichText::new(&feature.description)
+                    .color(theme::palette(ui.ctx()).2)
+                    .size(14.0),
+            );
         });
     }
 }
@@ -707,7 +401,7 @@ fn features(ui: &mut egui::Ui, app: &Application) {
 fn release(ui: &mut egui::Ui, app: &Application) {
     ui.label(mono("02 / VERSION DU CATALOGUE"));
     ui.add_space(10.0);
-    theme::outline().show(ui, |ui| {
+    theme::outline(ui.ctx()).show(ui, |ui| {
         ui.label(mono("VERSION DISPONIBLE"));
         ui.label(app.available_version());
         ui.label(mono("VERSION LOCALE DÉTECTÉE"));
@@ -741,7 +435,11 @@ fn release(ui: &mut egui::Ui, app: &Application) {
         );
     }
     for note in &app.release.notes {
-        ui.label(RichText::new(format!("· {note}")).color(MUTED).size(14.0));
+        ui.label(
+            RichText::new(format!("· {note}"))
+                .color(theme::palette(ui.ctx()).2)
+                .size(14.0),
+        );
     }
 }
 
@@ -768,7 +466,7 @@ mod tests {
 
     fn click_text(app: &mut StudioApp, ctx: &egui::Context, text: &str) {
         let mut output = frame(app, ctx, vec![]);
-        for _ in 0..2 {
+        for _ in 0..24 {
             output = frame(app, ctx, vec![]);
         }
         let position = output
@@ -798,11 +496,180 @@ mod tests {
         }
     }
 
+    fn text_positions(output: &egui::FullOutput, text: &str) -> Vec<egui::Pos2> {
+        output
+            .shapes
+            .iter()
+            .filter_map(|s| {
+                if let egui::Shape::Text(t) = &s.shape {
+                    (t.galley.job.text == text).then_some(t.pos)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    #[test]
+    fn five_joint_columns_and_button_bounds_at_reference_and_hidpi() {
+        for scale in [1.0, 2.0] {
+            let ctx = egui::Context::default();
+            ctx.set_pixels_per_point(scale);
+            let mut app = StudioApp::test_app(&ctx);
+            let metadata = app.apps[0].metadata.clone();
+            app.apps = (0..6)
+                .map(|i| {
+                    let mut m = metadata.clone();
+                    m.id = format!("app-{i}");
+                    m.name = format!("App {i}");
+                    Application::new(m)
+                })
+                .collect();
+            let mut output = frame(&mut app, &ctx, vec![]);
+            for _ in 0..3 {
+                output = frame(&mut app, &ctx, vec![]);
+            }
+            let positions: Vec<_> = (0..6)
+                .map(|i| text_positions(&output, &format!("App {i}"))[0])
+                .collect();
+            for pair in positions[..5].windows(2) {
+                assert!((pair[1].y - pair[0].y).abs() < 1.0);
+                assert!((pair[1].x - pair[0].x - 278.4).abs() < 3.0);
+            }
+            assert!((positions[5].y - positions[0].y - 306.0).abs() < 2.0);
+            let buttons = text_positions(&output, "INSTALLER");
+            assert_eq!(buttons.len(), 6);
+            assert!(buttons.iter().all(|p| p.x > 24.0 && p.x < 1416.0));
+            assert_eq!(library::columns(392.0), 1);
+            assert_eq!(library::columns(752.0), 2);
+            assert_eq!(library::columns(1616.0), 5);
+            assert_eq!(library::columns(2500.0), 5);
+        }
+    }
+    #[test]
+    fn narrow_toolbar_and_cards_remain_inside_viewport() {
+        let ctx = egui::Context::default();
+        let mut app = StudioApp::test_app(&ctx);
+        let mut output = None;
+        for _ in 0..4 {
+            output = Some(ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(440.0, 760.0),
+                    )),
+                    ..Default::default()
+                },
+                |ctx| app.show(ctx),
+            ));
+        }
+        let output = output.unwrap();
+        for label in ["Nom (A–Z)", "TOUT METTRE À JOUR (1)", "OUVRIR"] {
+            for shape in &output.shapes {
+                if let egui::Shape::Text(t) = &shape.shape {
+                    if t.galley.job.text == label {
+                        assert!(
+                            t.pos.x >= 0.0 && t.pos.x + t.galley.size().x <= 440.0,
+                            "{label} overflow"
+                        );
+                    }
+                }
+            }
+        }
+    }
+    #[test]
+    fn hover_never_starts_operation_and_list_uses_same_actions() {
+        let ctx = egui::Context::default();
+        let mut app = StudioApp::test_app(&ctx);
+        let out = frame(&mut app, &ctx, vec![]);
+        let pos = text_positions(&out, "Sequence")[0];
+        frame(&mut app, &ctx, vec![egui::Event::PointerMoved(pos)]);
+        assert_eq!(app.apps[0].operation, Operation::Idle);
+        assert_eq!(app.selected, None);
+        let visible = app.visible();
+        click_text(&mut app, &ctx, "☰");
+        assert_eq!(app.preferences.view, View::List);
+        assert_eq!(app.visible(), visible);
+        click_text(&mut app, &ctx, "METTRE À JOUR");
+        assert!(matches!(
+            app.apps[0].operation,
+            Operation::SimulatedDownload { .. }
+        ));
+        assert_eq!(app.selected, None);
+        app.query = "vidéo".into();
+        assert_eq!(app.visible(), vec![0]);
+        app.sort = Sort::Category;
+        assert_eq!(app.visible(), vec![0]);
+    }
+    #[test]
+    fn actual_local_metadata_is_never_labelled_as_simulated() {
+        let ctx = egui::Context::default();
+        let mut app = StudioApp::test_app(&ctx);
+        app.apps.truncate(1);
+        app.apps[0].simulation.version = None;
+        app.apps[0].local.version = Some("1.6.0".into());
+        let output = frame(&mut app, &ctx, vec![]);
+        assert_eq!(
+            text_positions(&output, "APPLICATIONS INSTALLÉES (1)").len(),
+            1
+        );
+        app.select(0);
+        let mut output = frame(&mut app, &ctx, vec![]);
+        for _ in 0..12 {
+            output = frame(&mut app, &ctx, vec![]);
+        }
+        assert_eq!(
+            text_positions(&output, "1.6.0 locale détectée / 1.8.0 disponible").len(),
+            1
+        );
+    }
+    #[test]
+    fn settings_pointer_theme_persistence_and_escape() {
+        let ctx = egui::Context::default();
+        let mut app = StudioApp::test_app(&ctx);
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("ui.json");
+        app.preferences_path = Some(path.clone());
+        click_text(&mut app, &ctx, "⚙");
+        assert!(app.settings_open);
+        click_text(&mut app, &ctx, "CLAIR");
+        assert_eq!(
+            app.preferences.appearance,
+            Appearance::Light,
+            "settings_open={} content={:?}",
+            app.settings_open,
+            ctx.content_rect()
+        );
+        assert!(!ctx.style().visuals.dark_mode);
+        click_text(&mut app, &ctx, "TERMINÉ");
+        assert!(!app.settings_open);
+        assert_eq!(
+            Preferences::load(&path).unwrap().appearance,
+            Appearance::Light
+        );
+        click_text(&mut app, &ctx, "☰");
+        assert_eq!(Preferences::load(&path).unwrap().view, View::List);
+        click_text(&mut app, &ctx, "⚙");
+        frame(
+            &mut app,
+            &ctx,
+            vec![egui::Event::Key {
+                key: egui::Key::Escape,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::NONE,
+            }],
+        );
+        assert!(!app.settings_open);
+        app.preferences = Preferences::load(&path).unwrap();
+        assert_eq!(app.preferences.view, View::List);
+    }
     #[test]
     fn actual_pointer_clicks_trigger_actions_and_open_details() {
         let ctx = egui::Context::default();
         let mut app = StudioApp::test_app(&ctx);
-        click_text(&mut app, &ctx, "SIMULER LA MISE À JOUR");
+        click_text(&mut app, &ctx, "METTRE À JOUR");
         assert!(matches!(app.apps[0].state(), AppState::Downloading { .. }));
         assert_eq!(
             app.selected, None,
