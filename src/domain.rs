@@ -50,6 +50,8 @@ pub enum Operation {
         target_version: String,
     },
     SimulationError(String),
+    Native(crate::installer::Progress),
+    NativeError(crate::installer::Failure),
 }
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct LocalInstallation {
@@ -102,6 +104,19 @@ impl Application {
     }
     pub fn state(&self) -> AppState {
         match &self.operation {
+            Operation::Native(progress) => {
+                if progress.phase == crate::installer::Phase::Downloading {
+                    AppState::Downloading {
+                        progress: progress.fraction(),
+                        paused: false,
+                    }
+                } else {
+                    AppState::Installing { progress: 0.0 }
+                }
+            }
+            Operation::NativeError(error) => AppState::Error {
+                message: error.message.clone(),
+            },
             Operation::SimulatedDownload { progress, paused } => AppState::Downloading {
                 progress: *progress,
                 paused: *paused,
@@ -127,10 +142,13 @@ impl Application {
             },
         }
     }
-    pub fn size_mb(&self) -> u64 {
-        self.release
-            .packages
-            .first()
-            .map_or(0, |p| p.size_bytes / 1_000_000)
+    pub fn size_mb(&self) -> f64 {
+        let selected = crate::installer::model::platform().and_then(|(os, arch)| {
+            crate::installer::model::select(&self.metadata, &os, &arch).ok()
+        });
+        selected
+            .as_ref()
+            .or_else(|| self.release.packages.first())
+            .map_or(0.0, |p| p.size_bytes as f64 / 1_000_000.0)
     }
 }

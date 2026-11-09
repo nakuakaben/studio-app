@@ -62,6 +62,15 @@ pub fn inspect(rule: &WindowsRule, record: &Record) -> Result<Installation, Stri
     if !local_path(&path) || !path.is_dir() {
         return Err("Dossier d’installation invalide".into());
     }
+    if path
+        .join(crate::installer::model::PENDING_MARKER)
+        .try_exists()
+        .map_err(|e| e.to_string())?
+    {
+        return Err(
+            "Installation incomplète ; vérifiez le dossier de test avant toute ouverture".into(),
+        );
+    }
     let executable = path
         .join(&rule.executable)
         .canonicalize()

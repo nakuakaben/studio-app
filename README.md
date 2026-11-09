@@ -24,8 +24,10 @@ Voir le [guide de l’étape 2.1](docs/ETAPE_2_1.md) et ses captures avant/aprè
 **La détection et l’ouverture natives sont actives sur macOS et Windows pour les
 applications munies de règles explicites dans le catalogue.** Le bouton OUVRIR
 revérifie l’installation avant de lancer le logiciel. Les applications fictives
-conservent leur simulateur. Aucun package n’est téléchargé ou installé ; les
-installations, désinstallations et mises à jour réelles restent hors périmètre.
+conservent leur simulateur. Le [moteur de l’étape 4](docs/ETAPE_4.md) permet désormais une installation réelle
+du logiciel de test isolé (ZIP/DMG macOS, ZIP portable Windows), avec HTTPS,
+approbation Ed25519, SHA-256 et détection finale. Le déploiement de production,
+PKG/MSI/EXE, les mises à jour et désinstallations restent désactivés.
 Voir [détection, limites et validation de l’étape 3](docs/ETAPE_3.md).
 La [finition graphique 3.1](docs/ETAPE_3_1.md) apporte des logos désaturés au repos,
 des teintes discrètes et un survol animé sans déplacement du contenu, en clair/sombre.
