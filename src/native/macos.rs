@@ -14,6 +14,15 @@ pub fn inspect(root: &Path, relative: &str, rule: &MacRule) -> Result<Installati
     if !path.starts_with(&root) || !path.is_dir() || path.extension().is_none_or(|e| e != "app") {
         return Err("Bundle hors du dossier autorisé".into());
     }
+    if path
+        .join(crate::installer::model::PENDING_MARKER)
+        .try_exists()
+        .map_err(|e| e.to_string())?
+    {
+        return Err(
+            "Installation incomplète ; vérifiez le dossier de test avant toute ouverture".into(),
+        );
+    }
     let info = path
         .join("Contents/Info.plist")
         .canonicalize()

@@ -32,6 +32,8 @@ impl StudioApp {
             .into_iter()
             .map(|metadata| {
                 if let Some(mut app) = old.remove(&metadata.id) {
+                    // A deliberate refresh allows a corrected local approval to be checked again.
+                    if matches!(app.operation,Operation::NativeError(_)){app.operation=Operation::Idle;}
                     if app.metadata.detection != metadata.detection
                         || app.metadata.fictional != metadata.fictional
                     {
@@ -40,6 +42,10 @@ impl StudioApp {
                     if app.metadata.fictional != metadata.fictional {
                         app.simulation = Default::default();
                         app.operation = Operation::Idle;
+                    }
+                    if matches!(app.operation,Operation::Native(_)) && serde_json::to_vec(&app.metadata).ok()!=serde_json::to_vec(&metadata).ok() {
+                        if let Some(job)=&self.installer_job {job.cancel.cancel();}
+                        app.operation=Operation::NativeError(crate::installer::Failure::permanent("Catalogue modifié pendant l’opération ; annulation demandée. Actualisez après la fin de l’opération pour vérifier l’état local."));
                     }
                     app.metadata = metadata;
                     app

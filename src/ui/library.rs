@@ -4,7 +4,7 @@ pub(super) fn columns(width: f32) -> usize {
     ((width / 270.0).floor() as usize).clamp(1, 5)
 }
 #[derive(Clone, Copy)]
-enum Action {
+pub(super) enum Action {
     Open,
     Run,
     Details,
@@ -79,7 +79,14 @@ impl StudioApp {
             )
             .show(ctx, |ui| {
                 ui.horizontal_wrapped(|ui| {
-                    ui.label(mono("OUVERTURE NATIVE · DÉMO FICTIVE").color(blue));
+                    ui.label(
+                        mono(if self.apps.iter().any(|app| !app.fictional) {
+                            "INSTALLATION ET OUVERTURE NATIVES"
+                        } else {
+                            "DÉMO FICTIVE · OPÉRATIONS SIMULÉES"
+                        })
+                        .color(blue),
+                    );
                     ui.separator();
                     if self.job.is_some() {
                         ui.spinner();
@@ -285,7 +292,7 @@ impl StudioApp {
             }
         });
     }
-    fn dispatch(&mut self, index: usize, action: Option<Action>) {
+    pub(super) fn dispatch(&mut self, index: usize, action: Option<Action>) {
         match action {
             Some(Action::Details) => self.select(index),
             Some(Action::Run) => self.action(index),
@@ -296,7 +303,15 @@ impl StudioApp {
                     *paused = !*paused;
                 }
             }
-            Some(Action::Cancel) => demo::cancel(&mut self.apps[index]),
+            Some(Action::Cancel) => {
+                if self.apps[index].fictional {
+                    demo::cancel(&mut self.apps[index]);
+                } else if let Some(job) = &self.installer_job {
+                    if job.application.id == self.apps[index].id {
+                        job.cancel.cancel();
+                    }
+                }
+            }
             None => {}
         }
     }
@@ -421,7 +436,7 @@ impl StudioApp {
                 .into()
             } else {
                 format!(
-                    "Téléchargement : {} MB{}",
+                    "Téléchargement : {:.1} MB{}",
                     app.size_mb(),
                     if app.fictional { " · simulation" } else { "" }
                 )
@@ -574,7 +589,7 @@ fn status_label(app: &Application) -> String {
         } else {
             state.label()
         };
-    if app.simulation.version.is_some() || app.operation != Operation::Idle {
+    if app.fictional && (app.simulation.version.is_some() || app.operation != Operation::Idle) {
         format!("{label} · SIMULÉ")
     } else {
         label.into()
@@ -594,9 +609,56 @@ fn version(app: &Application) -> String {
     }
 }
 
-fn actions(ui: &mut egui::Ui, app: &Application, action: &mut Option<Action>) {
+pub(super) fn actions(ui: &mut egui::Ui, app: &Application, action: &mut Option<Action>) {
     ui.spacing_mut().item_spacing.x = 6.0;
     let width = (ui.available_width() - 44.0).max(110.0);
+    if let Operation::Native(progress) = &app.operation {
+        ui.vertical(|ui| {
+            ui.set_width((width - 32.0).max(80.0));
+            if progress.phase == crate::installer::Phase::Downloading {
+                ui.add(
+                    egui::Label::new(
+                        mono(format!(
+                            "{:.1}/{:.1} MB · {:.0}%",
+                            progress.bytes as f64 / 1e6,
+                            progress.total as f64 / 1e6,
+                            progress.fraction() * 100.0
+                        ))
+                        .size(10.0),
+                    )
+                    .truncate(),
+                )
+                .on_hover_text(
+                    progress
+                        .bytes_per_second
+                        .map(|n| format!("Débit moyen : {:.1} MB/s", n as f64 / 1e6))
+                        .unwrap_or_else(|| "Débit en cours de mesure".into()),
+                );
+                ui.add(
+                    egui::ProgressBar::new(progress.fraction())
+                        .fill(accent(app.color))
+                        .desired_height(4.0),
+                );
+            } else {
+                ui.horizontal(|ui| {
+                    ui.spinner();
+                    ui.add(egui::Label::new(mono(progress.phase.label()).size(9.0)).truncate());
+                });
+            }
+        });
+        if ui
+            .add_enabled(progress.cancellable, egui::Button::new("×"))
+            .on_hover_text(if progress.cancellable {
+                "Annuler l’opération réelle"
+            } else {
+                "La copie finale ne peut pas être interrompue"
+            })
+            .clicked()
+        {
+            *action = Some(Action::Cancel);
+        }
+        return;
+    }
     match app.state() {
         AppState::Downloading { progress, paused } => {
             ui.vertical(|ui| {
@@ -668,7 +730,7 @@ fn actions(ui: &mut egui::Ui, app: &Application, action: &mut Option<Action>) {
                     *action = Some(Action::Run);
                 }
             } else if ui
-                .add_enabled_ui(app.fictional, |ui| {
+                .add_enabled_ui(app.fictional || (crate::installer::model::can_request(&app.metadata) && !matches!(&app.operation,Operation::NativeError(e) if !e.retryable)), |ui| {
                     primary(
                         ui,
                         if matches!(state, AppState::Error { .. }) {
@@ -683,7 +745,7 @@ fn actions(ui: &mut egui::Ui, app: &Application, action: &mut Option<Action>) {
                 .on_hover_text(if app.fictional {
                     "Simuler l’installation : aucun logiciel téléchargé"
                 } else {
-                    "Installation non prise en charge à cette étape"
+                    "Installer le package approuvé : authenticité et intégrité seront vérifiées avant installation"
                 })
                 .clicked()
             {

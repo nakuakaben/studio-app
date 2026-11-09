@@ -12,6 +12,7 @@ use eframe::egui::{self, Align, Color32, Layout, RichText, Sense, Stroke};
 use theme::{accent, mono, BG, BLUE, WHITE};
 
 use crate::preferences::{Appearance, Language, Preferences, Sort, View};
+mod installer_state;
 mod library;
 mod native_state;
 mod settings;
@@ -24,6 +25,7 @@ pub struct StudioApp {
     native_job: Option<Receiver<crate::native::worker::Snapshot>>,
     launch_job: Option<Receiver<(String, Result<(), String>)>>,
     native_status: String,
+    installer_job: Option<crate::installer::worker::Job>,
     query: String,
     sort: Sort,
     preferences: Preferences,
@@ -93,6 +95,7 @@ impl StudioApp {
             native_job: None,
             launch_job: None,
             native_status: String::new(),
+            installer_job: None,
             query: String::new(),
             sort: preferences.sort,
             preferences,
@@ -161,7 +164,11 @@ impl StudioApp {
 
     fn action(&mut self, index: usize) {
         if !self.apps[index].fictional {
-            self.open_application(index);
+            if self.apps[index].installed() {
+                self.open_application(index);
+            } else {
+                self.start_installation(index);
+            }
         } else if self.apps[index].state() == AppState::Installed {
             self.notice = Some(format!(
                 "Ouverture simulée de {}. Aucun programme n’a été lancé.",
@@ -176,6 +183,7 @@ impl StudioApp {
         self.apply_appearance(ctx);
         self.poll_catalog(ctx);
         self.poll_native(ctx);
+        self.poll_installer(ctx);
         let dt = ctx.input(|i| i.stable_dt);
         for app in &mut self.apps {
             demo::tick(app, dt);
@@ -211,6 +219,7 @@ impl StudioApp {
         let mut previous = false;
         let mut next = false;
         let mut action = false;
+        let mut native_action = None;
         let app = &self.apps[index];
         let color = accent(app.color);
         let size = ctx.content_rect().size();
@@ -241,17 +250,18 @@ impl StudioApp {
                     });
                     ui.add_space(16.0);
                     ui.horizontal_wrapped(|ui| {
-                        action = ui.add_enabled_ui(!app.state().busy() && (app.fictional || !app.local.installations.is_empty()), |ui| primary(ui, if app.fictional {app.state().action()} else {"OUVRIR"}, 260.0)).inner.clicked();
+                        if app.fictional {action = ui.add_enabled_ui(!app.state().busy(), |ui| primary(ui, app.state().action(), 260.0)).inner.clicked();}
+                        else {ui.allocate_ui_with_layout(egui::vec2(320.0,38.0),Layout::left_to_right(Align::Center),|ui|library::actions(ui,app,&mut native_action));}
                         for (label, link) in [("SITE WEB ↗", &app.links.website), ("GITHUB ↗", &app.links.github), ("DOCUMENTATION ↗", &app.links.documentation)] {
                             if let Some(link) = link { ui.hyperlink_to(label, link); }
                         }
                     });
-                    ui.label(mono(if app.fictional {"SIMULATION LOCALE · AUCUN LOGICIEL N’EST TÉLÉCHARGÉ OU EXÉCUTÉ"}else{"OUVERTURE NATIVE · AUCUNE INSTALLATION NI MISE À JOUR"}).size(10.0));
+                    ui.label(mono(if app.fictional {"SIMULATION LOCALE · AUCUN LOGICIEL N’EST TÉLÉCHARGÉ OU EXÉCUTÉ"}else{"INSTALLATION ET OUVERTURE NATIVES · MISES À JOUR DÉSACTIVÉES"}).size(10.0));
                 });
                 egui::Frame::new().inner_margin(24).show(ui, |ui| {
                     ui.label(&app.description);
                     if let AppState::Error { message } = &app.state() { ui.colored_label(Color32::LIGHT_RED, message); }
-                    if let AppState::Downloading { progress, .. } | AppState::Installing { progress } = app.state() {
+                    if let (true,AppState::Downloading { progress, .. } | AppState::Installing { progress }) = (app.fictional,app.state()) {
                         ui.label(mono(app.state().label()).color(color));
                         ui.add(egui::ProgressBar::new(progress).fill(color).show_percentage());
                     }
@@ -284,6 +294,7 @@ impl StudioApp {
         if action {
             self.action(index);
         }
+        self.dispatch(index, native_action);
     }
 }
 
@@ -843,6 +854,54 @@ mod tests {
                 |ctx| app.show(ctx),
             );
             assert_eq!(app.selected, None);
+        }
+    }
+    #[test]
+    fn real_installer_progress_survives_grid_list_detail_and_themes() {
+        for appearance in [Appearance::Dark, Appearance::Light] {
+            for view in [View::Grid, View::List] {
+                for detail in [false, true] {
+                    let ctx = egui::Context::default();
+                    let mut app = StudioApp::test_app(&ctx);
+                    app.apps.truncate(1);
+                    app.apps[0].metadata.fictional = false;
+                    app.apps[0].simulation = Default::default();
+                    app.apps[0].local = Default::default();
+                    app.preferences.appearance = appearance;
+                    app.preferences.view = view;
+                    app.apps[0].operation = Operation::Native(crate::installer::Progress {
+                        phase: crate::installer::Phase::Downloading,
+                        bytes: 1_000_000,
+                        total: 4_000_000,
+                        bytes_per_second: Some(500_000),
+                        cancellable: true,
+                    });
+                    if detail {
+                        app.select(0);
+                    }
+                    let mut output = frame(&mut app, &ctx, vec![]);
+                    for _ in 0..3 {
+                        output = frame(&mut app, &ctx, vec![]);
+                    }
+                    let texts: Vec<_> = output
+                        .shapes
+                        .iter()
+                        .filter_map(|s| {
+                            if let egui::Shape::Text(t) = &s.shape {
+                                Some(t.galley.job.text.as_str())
+                            } else {
+                                None
+                            }
+                        })
+                        .collect();
+                    assert!(
+                        texts.contains(&"1.0/4.0 MB · 25%"),
+                        "{appearance:?} {view:?} detail={detail}: {texts:?}"
+                    );
+                    assert!(!texts.iter().any(|text| text.contains("SIMULÉ · 25%")));
+                    assert!(app.apps[0].local.installations.is_empty());
+                }
+            }
         }
     }
 }

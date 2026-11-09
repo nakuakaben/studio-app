@@ -6,4 +6,5 @@ pub mod domain;
 pub mod preferences;
 pub mod ui;
 
+pub mod installer;
 pub mod native;
