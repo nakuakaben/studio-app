@@ -9,9 +9,53 @@ pub const CAPTIONS: [&str; 3] = [
     "LA COMPOSITION FINALE",
 ];
 
-pub fn preview(ui: &mut egui::Ui, app: &Application, slide: usize, width: f32) -> egui::Response {
+pub fn paint_image(p: &egui::Painter, rect: Rect, texture: &egui::TextureHandle) {
+    let size = texture.size_vec2();
+    let scale = (rect.width() / size.x).min(rect.height() / size.y);
+    let fitted = Rect::from_center_size(rect.center(), size * scale);
+    p.image(
+        texture.id(),
+        fitted,
+        Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
+        Color32::WHITE,
+    );
+}
+
+pub fn preview(
+    ui: &mut egui::Ui,
+    app: &Application,
+    slide: usize,
+    width: f32,
+    images: &std::collections::HashMap<String, egui::TextureHandle>,
+) -> egui::Response {
     let (r, response) = ui.allocate_exact_size(egui::vec2(width, width * 0.59), Sense::click());
     let p = ui.painter_at(r);
+    if let Some(screenshot) = app.screenshots.get(slide) {
+        p.rect_filled(r, 0, theme::BG);
+        if let Some(texture) = images.get(&screenshot.image.source) {
+            paint_image(&p, r, texture);
+        } else {
+            p.text(
+                r.center(),
+                Align2::CENTER_CENTER,
+                "Capture indisponible",
+                FontId::proportional(12.0),
+                MUTED,
+            );
+        }
+        return response.on_hover_text(&screenshot.image.alt);
+    }
+    if !app.fictional {
+        p.rect_filled(r, 0, theme::BG);
+        p.text(
+            r.center(),
+            Align2::CENTER_CENTER,
+            "Aucune capture fournie",
+            FontId::proportional(12.0),
+            MUTED,
+        );
+        return response;
+    }
     let color = theme::accent(app.color);
     p.rect_filled(r, 0, Color32::from_rgb(25, 27, 32));
     let at = |x: f32, y: f32| Pos2::new(r.left() + x * r.width(), r.top() + y * r.height());

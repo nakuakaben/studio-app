@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "name": "Fixture runtime",
+  "applications": [
+    {
+      "id": "runtime-test",
+      "name": "Sequence",
+      "short_description": "Du premier plan au dernier raccord. Un espace de création pour donner du rythme à vos histoires.",
+      "description": "Du premier plan au dernier raccord. Un espace de création pour donner du rythme à vos histoires.",
+      "category": "Montage vidéo et étalonnage",
+      "color": [
+        173,
+        133,
+        255
+      ],
+      "monogram": "Sq",
+      "publisher": "Studio App · démonstration",
+      "fictional": true,
+      "logo": {
+        "source": "sample.png",
+        "alt": "Logo de test"
+      },
+      "screenshots": [
+        {
+          "image": {
+            "source": "sample.png",
+            "alt": "Capture de test"
+          },
+          "caption": "Une capture chargée au runtime"
+        }
+      ],
+      "features": [
+        {
+          "title": "Un atelier à votre mesure",
+          "description": "Un espace clair et des outils contextuels pour rester concentré sur la création."
+        },
+        {
+          "title": "Un travail toujours précis",
+          "description": "Ajustez chaque détail dans un environnement cohérent."
+        },
+        {
+          "title": "Des projets indépendants",
+          "description": "Le logiciel cible restera utilisable sans Studio App."
+        }
+      ],
+      "release": {
+        "version": "1.8.0",
+        "published": "2026-11-09",
+        "notes": [
+          "Présentation du catalogue dynamique de démonstration."
+        ],
+        "packages": [
+          {
+            "id": "runtime-test-macos-aarch64",
+            "os": "macos",
+            "architecture": "aarch64",
+            "format": "dmg",
+            "url": "https://downloads.example.com/runtime-test.dmg",
+            "size_bytes": 12,
+            "sha256": "2b9cc4a9db471dbe900f09fbe469af30efdd8a740f938e325120903fb274339d"
+          }
+        ]
+      },
+      "history": [
+        {
+          "version": "1.6.0",
+          "published": "2026-10-01",
+          "notes": [
+            "Version précédente."
+          ],
+          "packages": []
+        }
+      ],
+      "links": {},
+      "platforms": [
+        {
+          "os": "macos",
+          "architectures": [
+            "aarch64",
+            "x86_64"
+          ]
+        },
+        {
+          "os": "windows",
+          "architectures": [
+            "x86_64"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,424 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "applications": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Application"
+      },
+      "maxItems": 128
+    }
+  },
+  "required": [
+    "schema_version",
+    "name",
+    "applications"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:studio-app:catalog:1",
+  "title": "Studio App Catalog v1",
+  "$defs": {
+    "Asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048,
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uri",
+              "pattern": "^https://",
+              "maxLength": 2048
+            },
+            {
+              "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*[\\\\:%])(?!.*//)[^\\u0000-\\u001f]+$"
+            }
+          ]
+        },
+        "alt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      },
+      "required": [
+        "source",
+        "alt"
+      ]
+    },
+    "Screenshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "image": {
+          "$ref": "#/$defs/Asset"
+        },
+        "caption": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      },
+      "required": [
+        "image",
+        "caption"
+      ]
+    },
+    "Feature": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048
+        }
+      },
+      "required": [
+        "title",
+        "description"
+      ]
+    },
+    "Links": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "website": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uri",
+              "pattern": "^https://",
+              "maxLength": 2048
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "documentation": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uri",
+              "pattern": "^https://",
+              "maxLength": 2048
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "github": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uri",
+              "pattern": "^https://",
+              "maxLength": 2048
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": []
+    },
+    "GitHubSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "owner": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.-]{1,100}$"
+        },
+        "repository": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.-]{1,100}$"
+        }
+      },
+      "required": [
+        "owner",
+        "repository"
+      ]
+    },
+    "Os": {
+      "enum": [
+        "macos",
+        "windows",
+        "linux"
+      ]
+    },
+    "Architecture": {
+      "enum": [
+        "aarch64",
+        "x86_64"
+      ]
+    },
+    "PackageFormat": {
+      "enum": [
+        "dmg",
+        "pkg",
+        "msi",
+        "exe",
+        "app_image",
+        "deb",
+        "rpm",
+        "zip",
+        "tar_gz"
+      ]
+    },
+    "Platform": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "os": {
+          "$ref": "#/$defs/Os"
+        },
+        "architectures": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Architecture"
+          },
+          "minItems": 1,
+          "maxItems": 2,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "os",
+        "architectures"
+      ]
+    },
+    "Package": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"
+        },
+        "os": {
+          "$ref": "#/$defs/Os"
+        },
+        "architecture": {
+          "$ref": "#/$defs/Architecture"
+        },
+        "format": {
+          "$ref": "#/$defs/PackageFormat"
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://",
+          "maxLength": 2048
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 107374182400
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        },
+        "github_asset_id": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "os",
+        "architecture",
+        "format",
+        "url",
+        "size_bytes",
+        "sha256"
+      ]
+    },
+    "Release": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 64,
+          "description": "SemVer 2.0 strict; checked by Rust"
+        },
+        "published": {
+          "type": "string",
+          "format": "date"
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "maxItems": 64
+        },
+        "packages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Package"
+          },
+          "maxItems": 16
+        }
+      },
+      "required": [
+        "version",
+        "published"
+      ]
+    },
+    "Application": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "short_description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8192
+        },
+        "category": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "color": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "monogram": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 3
+        },
+        "publisher": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "fictional": {
+          "type": "boolean",
+          "default": false
+        },
+        "logo": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Asset"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "screenshots": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Screenshot"
+          },
+          "maxItems": 6
+        },
+        "features": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Feature"
+          },
+          "maxItems": 16
+        },
+        "release": {
+          "$ref": "#/$defs/Release"
+        },
+        "history": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Release"
+          },
+          "maxItems": 32
+        },
+        "links": {
+          "$ref": "#/$defs/Links"
+        },
+        "platforms": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Platform"
+          },
+          "minItems": 1,
+          "maxItems": 3
+        },
+        "github": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GitHubSource"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "short_description",
+        "description",
+        "category",
+        "color",
+        "monogram",
+        "publisher",
+        "release",
+        "platforms"
+      ]
+    }
+  },
+  "description": "Structural schema. Runtime additionally checks unique identifiers, strict SemVer ordering, package/platform compatibility, source policy, public HTTPS URLs and bounded resource count. Null means an optional field is absent."
+}

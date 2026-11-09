@@ -1,4 +1,7 @@
-//! Presentation data, independent of network, filesystem and native operations.
+//! Catalog metadata, actual local installation and in-memory simulation stay separate.
+use crate::catalog::model::AppMetadata;
+use std::ops::Deref;
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum AppState {
     NotInstalled,
@@ -33,23 +36,93 @@ impl AppState {
         matches!(self, Self::Downloading { .. } | Self::Installing { .. })
     }
 }
-#[derive(Clone, Copy)]
-pub struct Feature {
-    pub title: &'static str,
-    pub description: &'static str,
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub enum Operation {
+    #[default]
+    Idle,
+    SimulatedDownload {
+        progress: f32,
+        paused: bool,
+    },
+    SimulatedInstall {
+        progress: f32,
+        target_version: String,
+    },
+    SimulationError(String),
 }
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct LocalInstallation {
+    /// Populated only by a future trusted local detector, NEVER by catalog or simulator.
+    pub version: Option<String>,
+}
+#[derive(Clone, Debug, Default)]
+pub struct Simulation {
+    pub version: Option<String>,
+}
+
 pub struct Application {
-    pub id: &'static str,
-    pub name: &'static str,
-    pub category: &'static str,
-    pub description: &'static str,
-    pub color: [u8; 3],
-    pub monogram: &'static str,
-    pub version: &'static str,
-    pub installed_version: Option<&'static str>,
-    pub size_mb: u32,
-    pub features: Vec<Feature>,
-    pub notes: Vec<&'static str>,
-    pub state: AppState,
-    pub idle_state: AppState,
+    pub metadata: AppMetadata,
+    pub local: LocalInstallation,
+    pub operation: Operation,
+    pub simulation: Simulation,
+}
+impl Deref for Application {
+    type Target = AppMetadata;
+    fn deref(&self) -> &Self::Target {
+        &self.metadata
+    }
+}
+impl Application {
+    pub fn new(metadata: AppMetadata) -> Self {
+        Self {
+            metadata,
+            local: LocalInstallation::default(),
+            operation: Operation::Idle,
+            simulation: Simulation::default(),
+        }
+    }
+    pub fn available_version(&self) -> &str {
+        &self.release.version
+    }
+    pub fn displayed_installed_version(&self) -> Option<&str> {
+        self.simulation
+            .version
+            .as_deref()
+            .or(self.local.version.as_deref())
+    }
+    pub fn state(&self) -> AppState {
+        match &self.operation {
+            Operation::SimulatedDownload { progress, paused } => AppState::Downloading {
+                progress: *progress,
+                paused: *paused,
+            },
+            Operation::SimulatedInstall { progress, .. } => AppState::Installing {
+                progress: *progress,
+            },
+            Operation::SimulationError(message) => AppState::Error {
+                message: message.clone(),
+            },
+            Operation::Idle => match self.displayed_installed_version() {
+                None => AppState::NotInstalled,
+                Some(v) => {
+                    if semver::Version::parse(v)
+                        .ok()
+                        .zip(semver::Version::parse(self.available_version()).ok())
+                        .is_some_and(|(local, available)| local.cmp_precedence(&available).is_lt())
+                    {
+                        AppState::UpdateAvailable
+                    } else {
+                        AppState::Installed
+                    }
+                }
+            },
+        }
+    }
+    pub fn size_mb(&self) -> u64 {
+        self.release
+            .packages
+            .first()
+            .map_or(0, |p| p.size_bytes / 1_000_000)
+    }
 }
