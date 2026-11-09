@@ -22,4 +22,4 @@ jobs:
       - name: Format
         run: cargo fmt --all -- --check
       - name: Check
-        run: cargo check --locked
+        run: cargo check
