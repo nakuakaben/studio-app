@@ -32,6 +32,12 @@ Voir [détection, limites et validation de l’étape 3](docs/ETAPE_3.md).
 La [finition graphique 3.1](docs/ETAPE_3_1.md) apporte des logos désaturés au repos,
 des teintes discrètes et un survol animé sans déplacement du contenu, en clair/sombre.
 
+Le [processus de distribution 4.1](docs/DISTRIBUTION.md) prépare les nouvelles
+versions depuis les dépôts GitHub explicitement enregistrés : proposition de PR,
+empreintes et approbation Ed25519 hors ligne avant publication du catalogue.
+Le registre de distribution livré est vide et les workflows d’écriture sont
+désactivés par défaut ; aucune vraie application n’est publiée.
+
 ## Lancer
 
 Installer Rust stable depuis [rustup.rs](https://rustup.rs), puis depuis le dépôt :

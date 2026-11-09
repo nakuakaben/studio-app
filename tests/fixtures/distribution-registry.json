@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "applications": [{
+    "metadata": {
+      "id": "api-fixture-only",
+      "name": "API fixture — not a product",
+      "publisher": "Studio App automated tests",
+      "short_description": "Simulated API fixture only",
+      "description": "This is test data, never a real product or a release to publish.",
+      "category": "Tests",
+      "color": [110, 120, 180],
+      "monogram": "Fx",
+      "logo": null,
+      "screenshots": [],
+      "features": [],
+      "links": {},
+      "platforms": [
+        {"os": "macos", "architectures": ["aarch64"]},
+        {"os": "windows", "architectures": ["x86_64"]}
+      ],
+      "detection": {
+        "macos": {"bundle_id": "local.studioapp.tests.api-fixture", "bundle_paths": ["ApiFixtureOnly.app"]},
+        "windows": {"uninstall_key": "StudioAppApiFixtureOnly", "publisher": "Studio App automated tests", "executable": "fixture.exe"}
+      }
+    },
+    "github": {"owner": "studio-app-fixtures", "repository": "api-simulation"},
+    "visibility": "public",
+    "allow_private_metadata_in_proposals": false,
+    "channel": "stable",
+    "tag_prefix": "v",
+    "packages": [
+      {"package_id": "fixture-mac-arm", "asset_name": "fixture-{version}-mac-arm.zip", "os": "macos", "architecture": "aarch64", "format": "zip", "max_size_bytes": 1024, "hash_policy": "require_github_digest", "recipe": {"kind": "mac_bundle", "bundle_name": "ApiFixtureOnly.app", "team_id": null}, "public_url": null},
+      {"package_id": "fixture-win-x64", "asset_name": "fixture-{version}-win-x64.zip", "os": "windows", "architecture": "x86_64", "format": "zip", "max_size_bytes": 1024, "hash_policy": "compute", "recipe": {"kind": "windows_portable", "directory_name": "ApiFixtureOnly", "authenticode_thumbprint": null}, "public_url": null}
+    ]
+  }]
+}

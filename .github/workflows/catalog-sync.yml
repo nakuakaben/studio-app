@@ -1,0 +1,54 @@
+name: Catalog release proposals
+on:
+  schedule:
+    - cron: '23 6 * * *'
+  workflow_dispatch:
+  repository_dispatch:
+    types: [studio_app_release]
+permissions:
+  contents: read
+concurrency:
+  group: catalog-release-proposals
+  cancel-in-progress: false
+jobs:
+  propose:
+    if: vars.CATALOG_SYNC_ENABLED == 'true' && (github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/dev')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Linux graphics dependencies
+        run: sudo apt-get update && sudo apt-get install -y libxkbcommon-dev libwayland-dev libgl1-mesa-dev libx11-dev libxi-dev libxrandr-dev
+      - uses: Swatinem/rust-cache@v2
+      - name: Prepare proposal without signing
+        env:
+          STUDIO_CATALOG_GITHUB_TOKEN: ${{ secrets.CATALOG_SOURCE_READ_TOKEN }}
+        run: cargo run --locked --bin studio-catalog -- sync distribution/registry.json distribution/catalog.json target/catalog-proposal.json
+      - name: Validate proposal structure
+        run: cargo run --locked --bin studio-catalog -- validate distribution/registry.json distribution/catalog.json target/catalog-proposal.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: catalog-proposal
+          path: target/catalog-proposal.json
+          retention-days: 3
+  create-pr:
+    needs: propose
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: catalog-proposal
+          path: target
+      - name: Create draft PR with dedicated GitHub App token
+        env:
+          CATALOG_WRITE_TOKEN: ${{ secrets.CATALOG_PR_TOKEN }}
+        run: python3 tools/catalog_automation.py propose-pr

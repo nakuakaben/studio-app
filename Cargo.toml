@@ -44,3 +44,7 @@ required-features = ["installer-fixtures"]
 name = "studio-installer-fixture"
 path = "tools/installer_fixture.rs"
 required-features = ["installer-fixtures"]
+
+[[bin]]
+name = "studio-catalog"
+path = "tools/studio_catalog.rs"
