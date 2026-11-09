@@ -1,6 +1,6 @@
 use std::{fs, path::Path, sync::Mutex};
 use studio_app::catalog::{
-    self, assets, cache, github,
+    self, assets, github,
     loader::{self, Config, Origin, Settings, Source, Transport},
     model::GitHubSource,
     security, Error, Result,
@@ -336,7 +336,7 @@ fn symlinks_cannot_escape_resource_root_or_poison_cache_reads() {
     fs::write(temp.path().join("secret"), PNG).unwrap();
     symlink(temp.path().join("secret"), root.join("escape.png")).unwrap();
     assert!(security::confined_file(&root, "escape.png").is_err());
-    let cache = cache::Cache::new(temp.path(), "key");
+    let cache = catalog::cache::Cache::new(temp.path(), "key");
     symlink(&root, &cache.root).unwrap();
     assert!(cache.read("escape.png", 1000).is_err());
     assert!(cache.write("catalog.json", VALID).is_err());
