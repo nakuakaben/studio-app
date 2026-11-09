@@ -1,19 +1,14 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 fn main() -> eframe::Result<()> {
-    let options = eframe::NativeOptions::default();
     eframe::run_native(
-        "Studio App",
-        options,
-        Box::new(|_cc| Ok(Box::new(StudioApp))),
+        "Studio App — Bibliothèque",
+        eframe::NativeOptions {
+            viewport: eframe::egui::ViewportBuilder::default()
+                .with_inner_size([1440.0, 960.0])
+                .with_min_inner_size([440.0, 560.0]),
+            ..Default::default()
+        },
+        Box::new(|cc| Ok(Box::new(studio_app::ui::StudioApp::new(&cc.egui_ctx)))),
     )
-}
-
-struct StudioApp;
-
-impl eframe::App for StudioApp {
-    fn update(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
-        eframe::egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("Studio App");
-            ui.label("Socle technique — catalogue et cartes à développer.");
-        });
-    }
 }
