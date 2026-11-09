@@ -5,12 +5,15 @@ Cartes applicatives complètes, fiches détaillées et thème sombre, inspirés 
 [l’ergonomie ArtCraft](https://github.com/storytold/craft-launcher), avec code et
 identité propres. Aucun Electron ni WebView.
 
-## État : étape 2
+## État : étape 2.1
 
 Le catalogue est désormais chargé **au runtime** depuis un fichier JSON ou une
 URL HTTPS configurée. Validation stricte, cache persistant, repli hors ligne,
 images PNG/JPEG et actualisation manuelle alimentent les cartes existantes.
-Recherche, tri, navigation et Échap sont conservés.
+Recherche, tri, navigation et Échap sont conservés. La bibliothèque propose
+une grille compacte de cinq colonnes et une liste, avec des réglages natifs
+persistants (apparence, langue, présentation et liens communautaires).
+Voir le [guide de l’étape 2.1](docs/ETAPE_2_1.md) et ses captures avant/après.
 
 **Les opérations d’installation et d’ouverture restent des simulations en
 mémoire.** Le catalogue et GitHub ne déclarent aucune installation locale.
@@ -51,9 +54,9 @@ cette étape. Chaque logiciel cible restera indépendant du launcher.
 
 ```sh
 cargo fmt --all -- --check
-cargo clippy --locked --all-targets -- -D warnings
-cargo test --locked
-cargo build --locked
+cargo clippy --locked --all-targets --all-features -- -D warnings
+cargo test --locked --all-features
+cargo build --locked --all-targets --all-features
 cargo run --locked -- --check-catalog catalog/obs-config.json
 cargo run --locked -- --discover obsproject/obs-studio
 ```
