@@ -12,6 +12,7 @@ visual-qa = []
 eframe = { version = "0.33", default-features = false, features = ["default_fonts", "glow", "wayland", "x11"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+plist = "1"
 semver = "1"
 url = "2"
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
@@ -20,6 +21,9 @@ sha2 = "0.10"
 tempfile = "3"
 directories = "6"
 time = { version = "0.3", features = ["parsing"] }
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.55"
 
 [profile.release]
 strip = true

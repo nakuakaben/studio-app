@@ -53,8 +53,10 @@ pub enum Operation {
 }
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct LocalInstallation {
-    /// Populated only by a future trusted local detector, NEVER by catalog or simulator.
+    /// Populated only by the native detector, NEVER by catalog metadata or simulator.
     pub version: Option<String>,
+    pub installations: Vec<crate::native::Installation>,
+    pub errors: Vec<String>,
 }
 #[derive(Clone, Debug, Default)]
 pub struct Simulation {
@@ -86,10 +88,17 @@ impl Application {
         &self.release.version
     }
     pub fn displayed_installed_version(&self) -> Option<&str> {
-        self.simulation
-            .version
-            .as_deref()
-            .or(self.local.version.as_deref())
+        if self.fictional {
+            self.simulation
+                .version
+                .as_deref()
+                .or(self.local.version.as_deref())
+        } else {
+            self.local.version.as_deref()
+        }
+    }
+    pub fn installed(&self) -> bool {
+        !self.local.installations.is_empty() || self.displayed_installed_version().is_some()
     }
     pub fn state(&self) -> AppState {
         match &self.operation {
@@ -104,12 +113,11 @@ impl Application {
                 message: message.clone(),
             },
             Operation::Idle => match self.displayed_installed_version() {
+                None if !self.local.installations.is_empty() => AppState::Installed,
                 None => AppState::NotInstalled,
                 Some(v) => {
-                    if semver::Version::parse(v)
-                        .ok()
-                        .zip(semver::Version::parse(self.available_version()).ok())
-                        .is_some_and(|(local, available)| local.cmp_precedence(&available).is_lt())
+                    if crate::native::model::compare_versions(v, self.available_version())
+                        == Some(std::cmp::Ordering::Less)
                     {
                         AppState::UpdateAvailable
                     } else {

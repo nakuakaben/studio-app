@@ -1,7 +1,7 @@
 //! Explicit simulator. Neither catalog metadata nor real local state is modified.
 use crate::domain::{AppState, Application, Operation};
 pub fn start(app: &mut Application) {
-    if app.state().busy() || app.state() == AppState::Installed {
+    if !app.fictional || app.state().busy() || app.state() == AppState::Installed {
         return;
     }
     app.operation = Operation::SimulatedDownload {
@@ -13,6 +13,9 @@ pub fn cancel(app: &mut Application) {
     app.operation = Operation::Idle;
 }
 pub fn tick(app: &mut Application, elapsed: f32) {
+    if !app.fictional {
+        return;
+    }
     let elapsed = elapsed.clamp(0.0, 0.1);
     match &mut app.operation {
         Operation::SimulatedDownload {

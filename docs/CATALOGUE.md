@@ -1,4 +1,4 @@
-# Catalogue dynamique — schéma 1
+# Catalogue dynamique — schémas 1 et 2
 
 Le launcher lit un manifeste JSON **au runtime**. Modifier ce fichier puis cliquer
 sur « Actualiser le catalogue » suffit pour ajouter, modifier ou retirer une
@@ -96,11 +96,16 @@ restent des démonstrations explicitement fictives, désormais décrites en JSON
 
 ## Structure du manifeste
 
-`catalog/schema-v1.json` fournit le JSON Schema 2020-12 structurel. La validation
+`catalog/schema-v1.json` et `catalog/schema-v2.json` fournissent les JSON Schemas
+2020-12 structurels. La validation
 Rust est obligatoire : elle ajoute les contraintes d’unicité et de cohérence,
 la politique d’URL et de ressources et les plafonds en octets. Les chaînes sont
 bornées en UTF-8 côté Rust ; le JSON Schema décrit les limites en caractères.
-Une version de schéma autre que l’entier `1` est refusée. Les champs inconnus,
+Les entiers `1` et `2` sont acceptés ; les autres versions sont refusées.
+Le schéma 2 ajoute les règles facultatives de détection native, documentées dans
+[ETAPE_3.md](ETAPE_3.md). Les anciens manifestes 1 restent lisibles sans migration.
+Un ancien launcher des étapes 1/2 refuse le schéma 2 ; actualiser le launcher
+avant de publier un manifeste 2, ou conserver un endpoint 1 pour ces clients. Les champs inconnus,
 les doublons de propriétés JSON et les types incorrects sont refusés.
 
 Racine : `schema_version`, `name`, `applications` (tableau pouvant être vide).
@@ -121,6 +126,7 @@ Chaque application contient :
 | `links` | `website`, `documentation`, `github` facultatifs/null, HTTPS publics |
 | `platforms` | OS et architectures déclarés compatibles |
 | `github` | Facultatif : `{owner, repository}` pour la découverte de publications |
+| `detection` | Schéma 2 : identités macOS/Windows explicites, jamais une commande |
 
 `release` et chaque entrée d’historique contiennent `version` (SemVer sans
 préfixe `v`), `published` (date valide `YYYY-MM-DD`), `notes` et `packages`.
@@ -233,8 +239,9 @@ La découverte n’est pas automatiquement lancée à chaque ouverture de fiche.
 ## Séparation des états
 
 `Application.metadata` contient uniquement les métadonnées du manifeste.
-`Application.local.version` est réservée à une future détection locale et
-reste absente à cette étape. `simulation.version` et `operation` appartiennent
+`Application.local` contient uniquement les installations et versions obtenues
+par le détecteur natif ; les chemins ne sont jamais chargés depuis un état
+installé prétendu par le manifeste. `simulation.version` et `operation` appartiennent
 au simulateur en mémoire. Ni le parsing, ni GitHub, ni la fin d’une simulation
 ne peuvent déclarer un logiciel réellement installé. Les versions du catalogue
 ne sont jamais réécrites par le simulateur.
@@ -243,5 +250,7 @@ ne sont jamais réécrites par le simulateur.
 pas par position du tableau. La sélection suit un changement d’ordre et se ferme
 si l’application disparaît. Les nouvelles entrées apparaissent immédiatement.
 
-Aucun téléchargement de package, installation, lancement, désinstallation ou
-mise à jour réelle du launcher n’est implémenté. L’étape 3 n’est pas commencée.
+Le lancement natif exige une installation effectivement détectée puis revérifiée
+au clic. Voir [ETAPE_3.md](ETAPE_3.md) pour les identités et limites. Aucun
+téléchargement de package, installation, désinstallation ou auto-update n’est
+implémenté.

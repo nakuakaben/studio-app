@@ -1,12 +1,12 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "name": "Exemple réel · OBS Studio",
   "applications": [
     {
       "id": "obs-studio",
       "name": "OBS Studio",
       "short_description": "Enregistrement vidéo et diffusion en direct.",
-      "description": "OBS Studio est un logiciel libre d’enregistrement vidéo et de diffusion en direct. Cet exemple lit les métadonnées du catalogue ; aucun logiciel n’est installé ni lancé.",
+      "description": "OBS Studio est un logiciel libre d’enregistrement vidéo et de diffusion en direct. Studio App peut détecter une installation existante et l’ouvrir ; aucun package n’est téléchargé ni installé.",
       "category": "Production vidéo",
       "color": [
         116,
@@ -62,6 +62,19 @@
       "github": {
         "owner": "obsproject",
         "repository": "obs-studio"
+      },
+      "detection": {
+        "macos": {
+          "bundle_id": "com.obsproject.obs-studio",
+          "bundle_paths": [
+            "OBS.app"
+          ]
+        },
+        "windows": {
+          "uninstall_key": "OBS Studio",
+          "publisher": "OBS Project",
+          "executable": "bin/64bit/obs64.exe"
+        }
       }
     }
   ]

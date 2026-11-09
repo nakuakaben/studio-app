@@ -84,7 +84,7 @@ fn rejects_fixtures_and_strict_schema_semantics() {
     assert!(catalog::parse(include_bytes!("fixtures/malformed.json")).is_err());
     let mutations: Vec<(&str, serde_json::Value)> = vec![
         ("/schema_version", 0.into()),
-        ("/schema_version", 2.into()),
+        ("/schema_version", 3.into()),
         ("/applications/0/id", "../escape".into()),
         ("/applications/0/release/version", "latest".into()),
         ("/applications/0/release/published", "2026-02-30".into()),
