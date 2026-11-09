@@ -35,6 +35,8 @@ pub struct AppMetadata {
     pub platforms: Vec<Platform>,
     #[serde(default)]
     pub github: Option<GitHubSource>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub detection: Option<crate::native::DetectionRules>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

@@ -79,13 +79,18 @@ impl StudioApp {
             )
             .show(ctx, |ui| {
                 ui.horizontal_wrapped(|ui| {
-                    ui.label(mono("OPÉRATIONS SIMULÉES · AUCUNE INSTALLATION RÉELLE").color(blue));
+                    ui.label(mono("OUVERTURE NATIVE · DÉMO FICTIVE").color(blue));
                     ui.separator();
                     if self.job.is_some() {
                         ui.spinner();
                     }
-                    ui.add(egui::Label::new(mono(&self.catalog_status).color(muted)).truncate())
-                        .on_hover_text(&self.catalog_status);
+                    let status = if self.native_status.is_empty() {
+                        self.catalog_status.clone()
+                    } else {
+                        format!("{} · {}", self.catalog_status, self.native_status)
+                    };
+                    ui.add(egui::Label::new(mono(&status).color(muted)).truncate())
+                        .on_hover_text(status);
                 });
             });
         egui::CentralPanel::default()
@@ -128,10 +133,7 @@ impl StudioApp {
                             let group: Vec<_> = indices
                                 .iter()
                                 .copied()
-                                .filter(|&i| {
-                                    self.apps[i].displayed_installed_version().is_some()
-                                        == installed
-                                })
+                                .filter(|&i| self.apps[i].installed() == installed)
                                 .collect();
                             if group.is_empty() {
                                 continue;
@@ -225,7 +227,7 @@ impl StudioApp {
     fn update_count(&self) -> usize {
         self.apps
             .iter()
-            .filter(|a| a.state() == AppState::UpdateAvailable)
+            .filter(|a| a.fictional && a.state() == AppState::UpdateAvailable)
             .count()
     }
     fn update_all(&mut self, ui: &mut egui::Ui) {
@@ -236,7 +238,7 @@ impl StudioApp {
                 .clicked()
         {
             for app in &mut self.apps {
-                if app.state() == AppState::UpdateAvailable {
+                if app.fictional && app.state() == AppState::UpdateAvailable {
                     demo::start(app);
                 }
             }
@@ -287,12 +289,7 @@ impl StudioApp {
         match action {
             Some(Action::Details) => self.select(index),
             Some(Action::Run) => self.action(index),
-            Some(Action::Open) => {
-                self.notice = Some(format!(
-                    "Ouverture simulée de {}. Aucun programme n’a été lancé.",
-                    self.apps[index].name
-                ))
-            }
+            Some(Action::Open) => self.open_application(index),
             Some(Action::Pause) => {
                 if let Operation::SimulatedDownload { paused, .. } = &mut self.apps[index].operation
                 {
@@ -309,7 +306,7 @@ impl StudioApp {
         let color = accent(app.color);
         let (rect, _) = ui.allocate_exact_size(egui::vec2(width, 306.0), Sense::hover());
         let response = ui.interact(rect, ui.id().with((&app.id, "card")), Sense::click());
-        let installed = app.displayed_installed_version().is_some();
+        let installed = app.installed();
         let hovered = ui.rect_contains_pointer(rect);
         let fill = if installed || hovered {
             theme::tinted(ui.ctx(), app.color)
@@ -340,7 +337,12 @@ impl StudioApp {
                 ))
                 .layout(Layout::left_to_right(Align::Center)),
         );
-        strip.label(mono(version(app)).color(color));
+        strip
+            .add_sized(
+                [(width - 130.0).max(80.0), 22.0],
+                egui::Label::new(mono(version(app)).color(color)).truncate(),
+            )
+            .on_hover_text(version(app));
         strip.with_layout(Layout::right_to_left(Align::Center), |ui| {
             if let Some(link) = &app.links.github {
                 ui.hyperlink_to(mono("GITHUB ↗"), link);
@@ -406,9 +408,18 @@ impl StudioApp {
         body.add_space(8.0);
         body.label(
             RichText::new(if app.release.packages.is_empty() {
-                "Aucun package approuvé · simulation".into()
+                if app.fictional {
+                    "Aucun package approuvé · simulation"
+                } else {
+                    "Aucun package approuvé"
+                }
+                .into()
             } else {
-                format!("Téléchargement : {} MB · simulation", app.size_mb())
+                format!(
+                    "Téléchargement : {} MB{}",
+                    app.size_mb(),
+                    if app.fictional { " · simulation" } else { "" }
+                )
             })
             .size(12.0)
             .color(muted),
@@ -453,7 +464,7 @@ impl StudioApp {
         let wide = ui.available_width() > 880.0;
         let mut action = None;
         let response = egui::Frame::new()
-            .fill(if app.displayed_installed_version().is_some() {
+            .fill(if app.installed() {
                 theme::tinted(ui.ctx(), app.color)
             } else {
                 bg
@@ -512,7 +523,19 @@ impl StudioApp {
     }
 }
 fn status_label(app: &Application) -> String {
-    let label = app.state().label();
+    let state = app.state();
+    let label =
+        if !app.fictional && !app.local.installations.is_empty() && app.local.version.is_none() {
+            "INSTALLÉ · VERSION INCONNUE"
+        } else if !app.fictional
+            && app.local.version.as_ref().is_some_and(|v| {
+                crate::native::model::compare_versions(v, app.available_version()).is_none()
+            })
+        {
+            "INSTALLÉ · VERSION NON COMPARABLE"
+        } else {
+            state.label()
+        };
     if app.simulation.version.is_some() || app.operation != Operation::Idle {
         format!("{label} · SIMULÉ")
     } else {
@@ -521,10 +544,18 @@ fn status_label(app: &Application) -> String {
 }
 fn version(app: &Application) -> String {
     match app.displayed_installed_version() {
-        Some(v) if v != app.available_version() => format!("{v} → {}", app.available_version()),
-        _ => format!("V{}", app.available_version()),
+        Some(v)
+            if crate::native::model::compare_versions(v, app.available_version())
+                == Some(std::cmp::Ordering::Less) =>
+        {
+            format!("{v} → {}", app.available_version())
+        }
+        Some(v) => format!("V{v}"),
+        None if app.installed() => "VERSION LOCALE INCONNUE".into(),
+        None => format!("V{}", app.available_version()),
     }
 }
+
 fn actions(ui: &mut egui::Ui, app: &Application, action: &mut Option<Action>) {
     ui.spacing_mut().item_spacing.x = 6.0;
     let width = (ui.available_width() - 44.0).max(110.0);
@@ -566,7 +597,7 @@ fn actions(ui: &mut egui::Ui, app: &Application, action: &mut Option<Action>) {
             });
         }
         state => {
-            if app.displayed_installed_version().is_some() {
+            if app.installed() {
                 let update = state == AppState::UpdateAvailable;
                 let open_width = if update { width * 0.36 } else { width };
                 if ui
@@ -574,29 +605,49 @@ fn actions(ui: &mut egui::Ui, app: &Application, action: &mut Option<Action>) {
                         [open_width, 38.0],
                         egui::Button::new(mono("OUVRIR").strong()),
                     )
-                    .on_hover_text("Simuler l’ouverture : aucun programme lancé")
+                    .on_hover_text(if app.fictional {
+                        "Simuler l’ouverture : aucun programme lancé"
+                    } else {
+                        "Ouvrir l’installation locale détectée"
+                    })
                     .clicked()
                 {
                     *action = Some(Action::Open);
                 }
                 if update
-                    && primary(ui, "METTRE À JOUR", width - open_width - 6.0)
-                        .on_hover_text("Simuler la mise à jour")
+                    && ui
+                        .add_enabled_ui(app.fictional, |ui| {
+                            primary(ui, "METTRE À JOUR", width - open_width - 6.0)
+                        })
+                        .inner
+                        .on_hover_text(if app.fictional {
+                            "Simuler la mise à jour"
+                        } else {
+                            "Mise à jour non prise en charge à cette étape"
+                        })
                         .clicked()
                 {
                     *action = Some(Action::Run);
                 }
-            } else if primary(
-                ui,
-                if matches!(state, AppState::Error { .. }) {
-                    "RÉESSAYER"
+            } else if ui
+                .add_enabled_ui(app.fictional, |ui| {
+                    primary(
+                        ui,
+                        if matches!(state, AppState::Error { .. }) {
+                            "RÉESSAYER"
+                        } else {
+                            "INSTALLER"
+                        },
+                        width,
+                    )
+                })
+                .inner
+                .on_hover_text(if app.fictional {
+                    "Simuler l’installation : aucun logiciel téléchargé"
                 } else {
-                    "INSTALLER"
-                },
-                width,
-            )
-            .on_hover_text("Simuler l’installation : aucun logiciel téléchargé")
-            .clicked()
+                    "Installation non prise en charge à cette étape"
+                })
+                .clicked()
             {
                 *action = Some(Action::Run);
             }
@@ -607,7 +658,13 @@ fn actions(ui: &mut egui::Ui, app: &Application, action: &mut Option<Action>) {
             *action = Some(Action::Details);
             ui.close();
         }
-        if ui.button("Réinitialiser la simulation").clicked() {
+        if ui
+            .add_enabled(
+                app.fictional,
+                egui::Button::new("Réinitialiser la simulation"),
+            )
+            .clicked()
+        {
             *action = Some(Action::Cancel);
             ui.close();
         }

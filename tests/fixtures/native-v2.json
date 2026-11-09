@@ -1,0 +1,81 @@
+{
+  "schema_version": 2,
+  "name": "Exemple réel · OBS Studio",
+  "applications": [
+    {
+      "id": "obs-studio",
+      "name": "OBS Studio",
+      "short_description": "Enregistrement vidéo et diffusion en direct.",
+      "description": "OBS Studio est un logiciel libre d’enregistrement vidéo et de diffusion en direct. Cet exemple lit les métadonnées du catalogue ; aucun logiciel n’est installé ni lancé.",
+      "category": "Production vidéo",
+      "color": [
+        116,
+        139,
+        182
+      ],
+      "monogram": "OBS",
+      "publisher": "OBS Project",
+      "fictional": false,
+      "logo": null,
+      "screenshots": [],
+      "features": [
+        {
+          "title": "Production en direct",
+          "description": "Composez des scènes à partir de plusieurs sources vidéo et audio."
+        }
+      ],
+      "release": {
+        "version": "33.0.1",
+        "published": "2026-10-29",
+        "notes": [
+          "Publication officielle : https://github.com/obsproject/obs-studio/releases/tag/33.0.1"
+        ],
+        "packages": []
+      },
+      "history": [],
+      "links": {
+        "website": "https://obsproject.com/",
+        "documentation": "https://obsproject.com/kb/",
+        "github": "https://github.com/obsproject/obs-studio"
+      },
+      "platforms": [
+        {
+          "os": "macos",
+          "architectures": [
+            "aarch64",
+            "x86_64"
+          ]
+        },
+        {
+          "os": "windows",
+          "architectures": [
+            "x86_64"
+          ]
+        },
+        {
+          "os": "linux",
+          "architectures": [
+            "x86_64"
+          ]
+        }
+      ],
+      "github": {
+        "owner": "obsproject",
+        "repository": "obs-studio"
+      },
+      "detection": {
+        "macos": {
+          "bundle_id": "com.obsproject.obs-studio",
+          "bundle_paths": [
+            "OBS.app"
+          ]
+        },
+        "windows": {
+          "uninstall_key": "OBS Studio",
+          "publisher": "OBS Project",
+          "executable": "bin/64bit/obs64.exe"
+        }
+      }
+    }
+  ]
+}

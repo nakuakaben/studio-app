@@ -13,10 +13,16 @@ use theme::{accent, mono, BG, BLUE, WHITE};
 
 use crate::preferences::{Appearance, Language, Preferences, Sort, View};
 mod library;
+mod native_state;
 mod settings;
 
 pub struct StudioApp {
     apps: Vec<Application>,
+    native_generation: u64,
+    native_pending: bool,
+    native_job: Option<Receiver<crate::native::worker::Snapshot>>,
+    launch_job: Option<Receiver<(String, Result<(), String>)>>,
+    native_status: String,
     query: String,
     sort: Sort,
     preferences: Preferences,
@@ -78,6 +84,11 @@ impl StudioApp {
         };
         Self {
             apps: Vec::new(),
+            native_generation: 0,
+            native_pending: false,
+            native_job: None,
+            launch_job: None,
+            native_status: String::new(),
             query: String::new(),
             sort: preferences.sort,
             preferences,
@@ -144,7 +155,9 @@ impl StudioApp {
     }
 
     fn action(&mut self, index: usize) {
-        if self.apps[index].state() == AppState::Installed {
+        if !self.apps[index].fictional {
+            self.open_application(index);
+        } else if self.apps[index].state() == AppState::Installed {
             self.notice = Some(format!(
                 "Ouverture simulée de {}. Aucun programme n’a été lancé.",
                 self.apps[index].name
@@ -157,6 +170,7 @@ impl StudioApp {
     pub fn show(&mut self, ctx: &egui::Context) {
         self.apply_appearance(ctx);
         self.poll_catalog(ctx);
+        self.poll_native(ctx);
         let dt = ctx.input(|i| i.stable_dt);
         for app in &mut self.apps {
             demo::tick(app, dt);
@@ -217,17 +231,17 @@ impl StudioApp {
                             ui.heading(theme::title(&app.name,34.0));
                             ui.label(&app.category);
                             if let Some(notice) = &self.notice { ui.colored_label(blue, notice); }
-                            ui.label(RichText::new(match app.displayed_installed_version() { Some(v) => format!("{v} {} / {} disponible", if app.simulation.version.is_some() {"simulée"} else {"locale détectée"}, app.available_version()), None => format!("Version disponible {}", app.available_version()) }).color(muted).size(13.0));
+                            ui.label(RichText::new(match app.displayed_installed_version() { Some(v) => format!("{v} {} / {} disponible", if app.simulation.version.is_some() {"simulée"} else {"locale détectée"}, app.available_version()), None if !app.local.installations.is_empty()=>format!("Version locale inconnue / {} disponible",app.available_version()), None => format!("Version disponible {}", app.available_version()) }).color(muted).size(13.0));
                         });
                     });
                     ui.add_space(16.0);
                     ui.horizontal_wrapped(|ui| {
-                        action = ui.add_enabled_ui(!app.state().busy(), |ui| primary(ui, app.state().action(), 260.0)).inner.clicked();
+                        action = ui.add_enabled_ui(!app.state().busy() && (app.fictional || !app.local.installations.is_empty()), |ui| primary(ui, if app.fictional {app.state().action()} else {"OUVRIR"}, 260.0)).inner.clicked();
                         for (label, link) in [("SITE WEB ↗", &app.links.website), ("GITHUB ↗", &app.links.github), ("DOCUMENTATION ↗", &app.links.documentation)] {
                             if let Some(link) = link { ui.hyperlink_to(label, link); }
                         }
                     });
-                    ui.label(mono("SIMULATION LOCALE · AUCUN LOGICIEL N’EST TÉLÉCHARGÉ OU EXÉCUTÉ").size(10.0));
+                    ui.label(mono(if app.fictional {"SIMULATION LOCALE · AUCUN LOGICIEL N’EST TÉLÉCHARGÉ OU EXÉCUTÉ"}else{"OUVERTURE NATIVE · AUCUNE INSTALLATION NI MISE À JOUR"}).size(10.0));
                 });
                 egui::Frame::new().inner_margin(24).show(ui, |ui| {
                     ui.label(&app.description);
@@ -405,7 +419,27 @@ fn release(ui: &mut egui::Ui, app: &Application) {
         ui.label(mono("VERSION DISPONIBLE"));
         ui.label(app.available_version());
         ui.label(mono("VERSION LOCALE DÉTECTÉE"));
-        ui.label(app.local.version.as_deref().unwrap_or("Non vérifiée"));
+        ui.label(
+            app.local
+                .version
+                .as_deref()
+                .unwrap_or(if app.local.installations.is_empty() {
+                    "Non détectée"
+                } else {
+                    "Inconnue"
+                }),
+        );
+        for (i, installation) in app.local.installations.iter().enumerate() {
+            ui.label(mono(if i == 0 {
+                "INSTALLATION RETENUE"
+            } else {
+                "AUTRE INSTALLATION DÉTECTÉE"
+            }));
+            ui.label(installation.path.display().to_string());
+        }
+        for error in &app.local.errors {
+            ui.label(RichText::new(error).size(12.0));
+        }
         if let Some(version) = &app.simulation.version {
             ui.label(mono("VERSION SIMULÉE"));
             ui.label(version);

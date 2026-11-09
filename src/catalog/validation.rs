@@ -76,18 +76,46 @@ fn release(r: &Release, platforms: &[Platform]) -> Result<()> {
 
 pub fn validate(c: &Catalog) -> Result<()> {
     check(
-        c.schema_version == 1,
-        "Version de schéma non supportée (attendue : 1)",
+        matches!(c.schema_version, 1 | 2),
+        "Version de schéma non supportée (attendue : 1 ou 2)",
     )?;
     text(&c.name, 128)?;
     check(c.applications.len() <= 128, "Maximum 128 applications")?;
     let mut ids = HashSet::new();
     let mut assets = HashSet::new();
+    let mut detection_ids = HashSet::new();
     for a in &c.applications {
         check(
             identifier(&a.id) && ids.insert(&a.id),
             "Identifiant applicatif invalide ou dupliqué",
         )?;
+        if let Some(rules) = &a.detection {
+            check(
+                c.schema_version == 2 && !a.fictional,
+                "La détection nécessite le schéma 2 et une application non fictive",
+            )?;
+            if let Some(mac) = &rules.macos {
+                check(
+                    detection_ids.insert(format!("mac:{}", mac.bundle_id)),
+                    "Identité macOS partagée par plusieurs applications",
+                )?;
+            }
+            if let Some(win) = &rules.windows {
+                check(
+                    detection_ids.insert(format!("windows:{}", win.uninstall_key.to_lowercase())),
+                    "Identité Windows partagée par plusieurs applications",
+                )?;
+            }
+            crate::native::model::validate(rules).map_err(|e| Error::invalid(&e))?;
+            check(
+                rules.macos.is_none() || a.platforms.iter().any(|p| p.os == Os::Macos),
+                "Détection macOS sans plateforme déclarée",
+            )?;
+            check(
+                rules.windows.is_none() || a.platforms.iter().any(|p| p.os == Os::Windows),
+                "Détection Windows sans plateforme déclarée",
+            )?;
+        }
         for value in [&a.name, &a.category, &a.publisher] {
             text(value, 128)?;
         }

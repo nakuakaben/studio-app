@@ -32,6 +32,15 @@ impl StudioApp {
             .into_iter()
             .map(|metadata| {
                 if let Some(mut app) = old.remove(&metadata.id) {
+                    if app.metadata.detection != metadata.detection
+                        || app.metadata.fictional != metadata.fictional
+                    {
+                        app.local = Default::default();
+                    }
+                    if app.metadata.fictional != metadata.fictional {
+                        app.simulation = Default::default();
+                        app.operation = Operation::Idle;
+                    }
                     app.metadata = metadata;
                     app
                 } else {
@@ -46,6 +55,8 @@ impl StudioApp {
         self.slide = 0;
         self.images.clear();
         self.asset_errors.clear();
+        self.native_generation = self.native_generation.wrapping_add(1);
+        self.native_pending = true;
     }
     pub(super) fn poll_catalog(&mut self, ctx: &egui::Context) {
         let events: Vec<_> = self
