@@ -5,7 +5,13 @@ Cartes applicatives complètes, fiches détaillées et thème sombre, inspirés 
 [l’ergonomie ArtCraft](https://github.com/storytold/craft-launcher), avec code et
 identité propres. Aucun Electron ni WebView.
 
-## État : étape 3
+## Périmètre et état : étape 3.1
+
+Studio App est le launcher de **notre propre gamme de logiciels professionnels**.
+La bibliothèque affiche seulement les applications publiées au catalogue approuvé.
+La détection native vérifie ces références ; elle n'inventorie pas l'ordinateur
+et n'ajoute jamais de logiciels tiers automatiquement. Les futurs produits seront
+référencés avec leurs véritables identifiants et versions, sans valeurs inventées.
 
 Le catalogue est désormais chargé **au runtime** depuis un fichier JSON ou une
 URL HTTPS configurée. Validation stricte, cache persistant, repli hors ligne,
@@ -21,6 +27,8 @@ revérifie l’installation avant de lancer le logiciel. Les applications fictiv
 conservent leur simulateur. Aucun package n’est téléchargé ou installé ; les
 installations, désinstallations et mises à jour réelles restent hors périmètre.
 Voir [détection, limites et validation de l’étape 3](docs/ETAPE_3.md).
+La [finition graphique 3.1](docs/ETAPE_3_1.md) apporte des logos désaturés au repos,
+des teintes discrètes et un survol animé sans déplacement du contenu, en clair/sombre.
 
 ## Lancer
 
@@ -39,7 +47,8 @@ Sur le poste de développement actuel, la chaîne Rust isolée du dossier parent
 
 Le catalogue JSON de démonstration est fourni dans `catalog/catalog.json`.
 Modifier ce fichier puis cliquer sur **Actualiser le catalogue** : aucun besoin
-de recompiler. Pour détecter puis ouvrir un OBS Studio déjà installé, choisir son catalogue :
+de recompiler. OBS n'est pas un produit de notre gamme et n'est pas inclus par défaut.
+Pour le seul contrôle technique facultatif de détection/ouverture, choisir son catalogue isolé :
 
 ```sh
 STUDIO_APP_CONFIG="$PWD/catalog/obs-config.json" ./scripts/cargo.sh
@@ -74,4 +83,4 @@ Documentation : [cahier des charges](docs/CAHIER_DES_CHARGES.md),
 [bilan étape 1](docs/ETAPE_1.md), [bilan étape 2](docs/ETAPE_2.md),
 [manifeste et ajout d’applications](docs/CATALOGUE.md).
 Développement sur des branches issues de `dev`, PR vers `dev`, CI macOS/Windows/
-Linux. La PR de l’étape 3 vise `dev` ; aucune fusion ni release automatique.
+Linux. Les PR visent `dev` ; aucune fusion ni release automatique.

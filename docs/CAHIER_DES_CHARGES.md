@@ -5,6 +5,20 @@ Statut : cadrage initial. Référence fonctionnelle et ergonomique : [ArtCraft L
 ## Vision
 Launcher natif minimaliste pour une suite de logiciels professionnels. Inspiration très proche des captures ArtCraft fournies pendant le cadrage : **cartes applicatives complètes**, et non simples icônes. Code et identité propres.
 
+### Périmètre produit définitif (étape 3.1)
+
+Studio App est le launcher de **notre propre gamme de logiciels professionnels**.
+La bibliothèque affiche exclusivement les applications explicitement publiées
+dans notre catalogue approuvé. Ce n'est pas un gestionnaire universel de logiciels :
+aucune découverte système ne doit ajouter une application tierce à la bibliothèque.
+Le moteur natif reste limité aux identifiants du catalogue chargé.
+
+Le catalogue par défaut actuel est une démonstration de huit logiciels fictifs.
+OBS est seulement un exemple technique facultatif, isolé dans sa configuration,
+et ne doit pas rejoindre le catalogue par défaut ni être présenté comme notre produit.
+Les futurs logiciels de la gamme seront ajoutés avec leurs véritables identifiants,
+versions et métadonnées approuvées ; ne pas les inventer pour remplir la bibliothèque.
+
 ## UX/UI — exigences
 - Bibliothèque sous forme de grandes cartes rectangulaires homogènes.
 - Chaque carte : logo, couleur propre à l'outil, nom, phrase courte, version, état et action principale.

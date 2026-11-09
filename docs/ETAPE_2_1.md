@@ -121,8 +121,9 @@ STUDIO_QA_STATE=settings \
 `STUDIO_QA_STATE` : `settings`, `list`, `light`, `detail`, `hover` ou vide (grille).
 `STUDIO_QA_WIDTH`/`STUDIO_QA_HEIGHT` : points logiques, 1664×940 par défaut.
 Pour la rangée de cinq : `STUDIO_APP_CONFIG=target/visual-qa/config.json` après
-le script. Il compose les huit exemples et OBS existants, sans changer le
-catalogue produit ni ajouter d'installation simulée à OBS.
+le script. Depuis l'étape 3.1, il utilise seulement les huit démonstrations
+existantes, avec les scénarios désactivés pour montrer cinq cartes disponibles
+sur la même rangée. Aucun OBS ni nouveau logiciel n'est ajouté au catalogue.
 Les captures macOS sont en densité native 2× ; la hauteur du contenu varie de
 quelques points avec la décoration de fenêtre et le placement système.
 

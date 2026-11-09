@@ -1,88 +1,93 @@
-# Contrôle visuel natif — étape 2.1
+# Contrôle visuel natif — étape 3.1
 
-## Portée et sources
+## Sources et cadrage
 
-Contrôle du vrai programme Rust/egui/glow sur macOS, densité native 2×.
-Branche de départ : `dev` après fusion de la PR #2 (`3ac770c`).
-La capture `docs/screenshots/before-grid.png` précède les modifications.
-Les captures `after-*.png` proviennent de la fenêtre native, via la commande
-Screenshot d'egui et son événement GPU ; aucune image de façade ne les remplace.
+Cible : les captures Studio App fournies pour cette étape (grilles claire/sombre,
+liste et réglages), avec les ajustements de survol explicitement décrits dans la
+demande. Elles prolongent les proportions ArtCraft déjà validées. Monogrammes,
+polices et aperçus restent ceux de Studio App : aucun remplacement de marque.
 
-Références fournies et examinées :
+Source reproductible : docs/screenshots/polish/before-dark.png et before-light.png,
+capturées sur le binaire natif de dev après PR #4, avant modification.
+Implémentation : after-dark.png et after-light.png du même dossier.
+Toutes quatre : 3328 × 1834 pixels, densité 2×, fenêtre demandée 1664 × 940 points
+(contenu GPU 1664 × 917 après décoration native). Même catalogue/scénarios,
+sauf progression temporelle simulée d'Onde.
 
-- ArtCraft : `codex-clipboard-9c86f6ef-25f2-4818-bce9-f436c71addbe.png`
-  (bibliothèque), `codex-clipboard-a46af0b3-3729-45a7-8fff-ca552ea6bb85.png`
-  (réglages).
-- Studio App : `visuel 01.png` et `visuel 02.png`.
-- Les trois captures ArtCraft initiales pour la continuité des fiches.
+Les sources et implémentations ont été réunies et examinées dans les mêmes
+images, à une largeur proportionnelle identique de 1000 pixels par vue :
+[sombre](docs/screenshots/polish/compare-dark.png),
+[clair](docs/screenshots/polish/compare-light.png).
+La [comparaison ciblée](docs/screenshots/polish/compare-card.png) juxtapose les
+recadrages natifs de carte à la même échelle pour lire logo, texte, badge et actions.
 
-Les comparaisons côte à côte ont été examinées avec source et capture réelle
-sur la même image, ramenées proportionnellement à une largeur de 830 pixels
-(sans déformation), avec un recadrage dédié aux bandeaux, bordures et actions.
-Les composites locaux sont dans `target/visual-qa/` : `artcraft-grid.png`,
-`artcraft-settings.png`, `studio-grid.png`, `studio-settings.png`,
-`card-crops.png`. Les images de marque tierces ne sont pas copiées dans Git.
+Autres états ouverts et examinés :
+- after-five-hover.png / after-five-light-hover.png : 3328 × 1834, huit
+  démonstrations sans scénario, cinq colonnes et Relief survolé.
+- after-list.png / after-light-list.png : 3328 × 1844, liste, hauteur utile
+  légèrement différente avec la décoration macOS.
+- after-detail.png / after-settings.png : 3328 × 1834, fiche/réglages.
+- hover-native.mp4 : vrai framebuffer 1800 × 1400 (900 × 700 points),
+  encodé en 900 × 700/30 fps, 3,33 s, selon les timestamps réels.
+  Les [six instants](docs/screenshots/polish/hover-sequence.png) réunissent
+  repos, progression du liseré/couleur et retour au repos à la même échelle.
 
-Le contrôle Product Design a été adapté au rendu natif : aucune conversion web,
-aucun redesign de marque, aucune génération d'assets remplaçant les monogrammes
-existants. Les exigences explicites Rust/egui et identité propre priment.
+## Historique des corrections et nouvelle comparaison
 
-## Écarts corrigés lors des itérations
+1. **[P1, corrigé] Texte déplacé au survol.** Le logo réservait 54 puis 56 points
+   au layout. Emplacement désormais constant et dessin seul à 104 %, centré.
+   Le film final montre titre/catégorie immobiles ; les tests suivent aussi les
+   positions exactes des textes/actions sur vingt frames, dans les deux thèmes
+   et vues. Aucun zoom de carte ni changement de géométrie.
+2. **[P2, corrigé] Trop de couleurs au repos.** Vignettes disponibles vivement
+   colorées et fonds installés trop marqués dans la source. Après : gris neutres
+   et aplats réduits. Le film et les rangées de cinq montrent une seule vignette
+   colorée au survol et une teinte de carton presque imperceptible.
+3. **[P2, corrigé] Versions jaunes/cyan peu lisibles en clair.** Petits accents
+   ajustés et versions non installées neutres au repos. La comparaison claire
+   montre les petites métadonnées installées assombries. Contraste 4,5:1 testé
+   contre le fond neutre.
+4. La première preuve vidéo visait le dessus des cartes car la barre se replie
+   à 900 points. Après observation du framebuffer, point de survol corrigé et
+   capture refaite. Le film final montre effectivement le mouvement natif.
 
-1. Anciennes cartes de 360 points et calcul à 320 points : remplacés par des
-   cartes jointives de 306 points et une grille de 1 à 5 colonnes, minimum de
-   contenu 270 points par colonne. Les actions ont un emplacement réservé.
-2. Premier rendu des nouveaux cartons : le corps héritait du layout horizontal
-   du parent et débordait. Layout vertical explicite et identifiants propres
-   aux sous-zones ; ajout d'un test de clic nom/action distincts.
-3. Première barre étroite : le sélecteur dépassait et élargissait les cartes.
-   Lignes explicites sous 1 050 points ; test des limites à 440 points.
-4. Une hauteur d'interaction de la barre se propageait au contenu des cartes :
-   style isolé dans un scope. L'éditeur/date reste au-dessus des boutons.
-5. Thème clair : panneaux, contours et textes secondaires des fiches/réglages
-   adaptés ; les aperçus conceptuels conservent leur propre rendu de logiciel.
-6. Réglages trop hauts : espacement vertical réduit, contenu défilant borné et
-   footer fixe ; tous les groupes tiennent sur deux colonnes à grande largeur.
-7. Densité des vignettes : logos 54 points (56 au survol) et titres Lato Bold,
-   sans changement de monogrammes ni de couleurs du catalogue.
-8. États ambiguës : marquage SIMULÉ dans les badges concernés et le footer,
-   absence de tailles inventées lorsqu'aucun package n'est approuvé.
+Après corrections : nouvelles captures et comparaisons. Aucun P0/P1/P2 restant
+dans le périmètre demandé.
 
-## Résultat de la comparaison
+## Cinq surfaces de fidélité
 
-- Proportions : bandeau fin, cartes complètes et denses, contours jointifs,
-  actions alignées, cinq emplacements sur la largeur de référence. Le rang
-  complet de contrôle contient cinq applications réelles du catalogue d'exemple
-  ou fictives explicitement indiquées, sans en créer de nouvelles pour l'image.
-- Structure : identité/signature/engrenage en haut, actualisation à gauche et
-  contrôles alignés à droite ; installées/simulées en premier, disponibles après.
-- Couleurs : arrière-plan sombre neutre, accent par application, survol subtil
-  avec liseré supérieur ; boutons principaux monochromes.
-- Réglages : modal assombrissant la bibliothèque, deux colonnes larges, sections
-  bordées, footer Quitter/Terminé ; empilement et défilement sur fenêtre étroite.
-- Typographie : noms lisibles et graisse dédiée ; petites métadonnées monospace.
-  Ellipses réservées aux noms/descriptions longs avec infobulle, jamais aux actions.
-- Interaction native : engrenage, thème clair puis sombre, Échap, grille/liste,
-  saisie de recherche, ouverture d'une fiche et fermeture vérifiés à la souris.
-- Tests headless : géométrie à 1×/2×, cinq colonnes, petite fenêtre, clics,
-  navigation, actions, survol sans effet de bord et préférences persistantes.
+- **Polices/typographie** : Lato/Lato Bold et monospace conservés, mêmes graisses,
+  retours, ellipses et alignements sur les recadrages lisibles. Le texte n'est
+  pas agrandi avec le logo.
+- **Espacement/rythme** : cartes complètes de 306 points, marges, bandeau de
+  version et actions conservés. Cinq colonnes maintenues. Liste conservée ;
+  son bas défile comme auparavant sans cacher les contrôles persistants.
+- **Couleurs/tokens** : repos neutre, teinte installée réduite, liseré 220 ms et
+  accents lisibles dans les deux thèmes. Boutons monochromes au même emplacement.
+- **Images/qualité** : monogrammes originaux conservés, aucun asset ArtCraft
+  inventé. Logos PNG/JPEG conservés en couleur dans la fiche et en variante
+  grise en bibliothèque ; aucune substitution ni déformation. Zoom de 4 %
+  limité au logo, sans débord sur le texte.
+- **Texte produit/contenu** : noms, versions, descriptions, états et menus
+  conservés. Simulations explicites. Documentation clarifiant notre gamme,
+  l'absence d'ajout automatique de logiciels tiers et l'exemple OBS facultatif.
 
-Différences intentionnelles : les données ne reprennent pas les versions,
-installations ni tailles fictives des maquettes ; les fonctions système non
-implémentées sont désactivées. Aucun faux Discord, réseau social, logo animalier
-ou illustration ArtCraft. Les anciens aperçus conceptuels sont conservés.
-Le launcher reste une application native avec décoration de fenêtre système.
+## Interactions, limites et verdict
 
-## Limites et verdict
+Sur l'application native macOS avec souris/clavier : grille vers liste,
+réglages, thème clair, Échap, ouverture de Folio depuis la liste, retour.
+Les captures GPU du harness vérifient les autres états sans façade HTML.
+Tests existants : recherche, tri, navigation, actions, préférences, états natifs,
+rendu étroit/HiDPI. Nouveaux tests : mouvement réduit, progression/rétraction,
+neutralité, contrastes, géométrie immobile et absence d'ajout hors catalogue.
 
-Contrôle visuel macOS validé sur les captures conservées dans
-`docs/screenshots/`. Le contenu hors zone visible se consulte par défilement ;
-les noms/descriptions peuvent être ellipsés avec infobulle. Les contrôles
-d'installation réelle restent volontairement désactivés. La CI macOS/Windows/
-Ubuntu couvre code, tests et compilation ; aucune capture native Windows/Linux
-n'a été réalisée sur ce poste.
+Pas de capture native Windows/Linux ici : CI pour compilation, Clippy et tests.
+La préférence système best-effort de mouvement est lue au démarrage ; aucun
+réglage d'accessibilité du poste n'a été modifié pour la QA.
+Voir les limites de [l'étape 3.1](docs/ETAPE_3_1.md).
 
-Le résultat respecte les proportions et interactions demandées tout en conservant
-l'identité et les données Studio App. Aucun écart substantiel de débordement ou
-d'action tronquée ne demeure dans les formats contrôlés (440, 800, 1440, 1664
-points et densités 1×/2×).
+Checklist terminée : cinq colonnes, deux thèmes, liste, fiches/réglages,
+liseré gauche→droite, logo seul animé, retour doux, détection/lancement inchangés.
+Aucun P3 nécessitant une modification supplémentaire retenu dans ce périmètre.
+
+final result: passed

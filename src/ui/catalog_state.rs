@@ -54,6 +54,7 @@ impl StudioApp {
         self.selected = selected_id.and_then(|id| self.apps.iter().position(|a| a.id == id));
         self.slide = 0;
         self.images.clear();
+        self.gray_logos.clear();
         self.asset_errors.clear();
         self.native_generation = self.native_generation.wrapping_add(1);
         self.native_pending = true;
@@ -88,6 +89,24 @@ impl StudioApp {
                     Ok(raster) => {
                         let image =
                             egui::ColorImage::from_rgba_unmultiplied(raster.size, &raster.rgba);
+                        if self
+                            .apps
+                            .iter()
+                            .any(|a| a.logo.as_ref().is_some_and(|logo| logo.source == source))
+                        {
+                            let mut gray = image.clone();
+                            for pixel in &mut gray.pixels {
+                                *pixel = theme::hover::gray(*pixel);
+                            }
+                            self.gray_logos.insert(
+                                source.clone(),
+                                ctx.load_texture(
+                                    "catalog-logo-gray",
+                                    gray,
+                                    egui::TextureOptions::LINEAR,
+                                ),
+                            );
+                        }
                         self.images.insert(
                             source,
                             ctx.load_texture("catalog-image", image, egui::TextureOptions::LINEAR),
@@ -146,6 +165,7 @@ mod tests {
         app.poll_catalog(&ctx);
         assert!(app.catalog_status.contains("données en cache"));
         assert_eq!(app.images.len(), 1);
+        assert_eq!(app.gray_logos.len(), 1);
         assert!(app.apps[0].local.version.is_none());
         assert!(app.apps[0].simulation.version.is_none());
         for width in [440.0, 800.0, 1440.0] {

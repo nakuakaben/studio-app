@@ -1,4 +1,6 @@
 use eframe::egui::{self, Color32, FontFamily, FontId, RichText, Stroke, TextStyle};
+pub mod hover;
+pub mod motion;
 
 pub const BG: Color32 = Color32::from_rgb(17, 18, 20);
 pub const PANEL: Color32 = Color32::from_rgb(21, 22, 25);

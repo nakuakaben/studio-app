@@ -1,5 +1,9 @@
 # Étape 3 — détection et lancement natifs
 
+Périmètre confirmé à l'[étape 3.1](ETAPE_3_1.md) : le moteur décrit ici ne
+détecte que les références du catalogue choisi. Aucun ajout automatique de logiciel
+tiers ; OBS est un contrôle technique facultatif, hors du catalogue par défaut.
+
 Branche `feat/native-app-detection`, créée depuis `origin/dev` au commit
 `08ce7b6` après fusion de la PR #3. L'interface de l'étape 2.1 est conservée :
 cartes, proportions, grille/liste, tri, recherche, navigation, réglages et fiches.
