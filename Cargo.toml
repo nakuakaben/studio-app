@@ -6,7 +6,7 @@ description = "Native launcher for the Studio App professional software suite"
 license = "MIT"
 
 [dependencies]
-eframe = "0.33"
+eframe = { version = "0.33", default-features = false, features = ["default_fonts", "glow", "wayland", "x11"] }
 
 [profile.release]
 strip = true
