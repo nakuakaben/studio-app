@@ -1,0 +1,13 @@
+[package]
+name = "studio-app"
+version = "0.1.0"
+edition = "2021"
+description = "Native launcher for the Studio App professional software suite"
+license = "MIT"
+
+[dependencies]
+eframe = "0.33"
+
+[profile.release]
+strip = true
+lto = "thin"
