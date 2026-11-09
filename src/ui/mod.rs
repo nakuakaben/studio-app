@@ -1,9 +1,12 @@
+mod catalog_state;
 mod gallery;
 mod theme;
+use crate::catalog::{loader::Origin, worker::Event};
+use std::{collections::HashMap, sync::mpsc::Receiver};
 
 use crate::{
-    catalog, demo,
-    domain::{AppState, Application},
+    demo,
+    domain::{AppState, Application, Operation},
 };
 use eframe::egui::{self, Align, Color32, Layout, RichText, Sense, Stroke};
 use theme::{accent, mono, BG, BLUE, BORDER, MUTED, WHITE};
@@ -21,19 +24,44 @@ pub struct StudioApp {
     selected: Option<usize>,
     slide: usize,
     notice: Option<String>,
+    catalog_status: String,
+    catalog_origin: Option<Origin>,
+    job: Option<Receiver<Event>>,
+    images: HashMap<String, egui::TextureHandle>,
+    asset_errors: HashMap<String, String>,
 }
 
 impl StudioApp {
     pub fn new(ctx: &egui::Context) -> Self {
+        let mut app = Self::empty(ctx);
+        app.refresh_catalog(ctx);
+        app
+    }
+
+    fn empty(ctx: &egui::Context) -> Self {
         theme::apply(ctx);
         Self {
-            apps: catalog::demonstration(),
+            apps: Vec::new(),
             query: String::new(),
             sort: Sort::Name,
             selected: None,
             slide: 0,
             notice: None,
+            catalog_status: "Catalogue indisponible".into(),
+            catalog_origin: None,
+            job: None,
+            images: HashMap::new(),
+            asset_errors: HashMap::new(),
         }
+    }
+
+    #[cfg(test)]
+    fn test_app(ctx: &egui::Context) -> Self {
+        let mut app = Self::empty(ctx);
+        app.apps = crate::catalog::demonstration();
+        app.catalog_origin = Some(Origin::Local);
+        app.catalog_status = "Catalogue de test".into();
+        app
     }
 
     fn visible(&self) -> Vec<usize> {
@@ -50,8 +78,8 @@ impl StudioApp {
             .map(|(i, _)| i)
             .collect();
         indices.sort_by_key(|&i| match self.sort {
-            Sort::Name => self.apps[i].name,
-            Sort::Category => self.apps[i].category,
+            Sort::Name => self.apps[i].name.as_str(),
+            Sort::Category => self.apps[i].category.as_str(),
         });
         indices
     }
@@ -74,7 +102,7 @@ impl StudioApp {
     }
 
     fn action(&mut self, index: usize) {
-        if self.apps[index].state == AppState::Installed {
+        if self.apps[index].state() == AppState::Installed {
             self.notice = Some(format!(
                 "Ouverture simulée de {}. Aucun programme n’a été lancé.",
                 self.apps[index].name
@@ -85,13 +113,14 @@ impl StudioApp {
     }
 
     pub fn show(&mut self, ctx: &egui::Context) {
+        self.poll_catalog(ctx);
         let dt = ctx.input(|i| i.stable_dt);
         for app in &mut self.apps {
             demo::tick(app, dt);
         }
         if self.apps.iter().any(|a| {
             matches!(
-                a.state,
+                a.state(),
                 AppState::Downloading { paused: false, .. } | AppState::Installing { .. }
             )
         }) {
@@ -128,7 +157,7 @@ impl StudioApp {
                     ui.add_space(22.0);
                     ui.label(mono("L’ATELIER DES CRÉATEURS"));
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        ui.label(mono("V0.1 / DÉMONSTRATION").color(BLUE));
+                        ui.label(mono("V0.1 / SIMULATION").color(BLUE));
                     });
                 });
             });
@@ -140,7 +169,7 @@ impl StudioApp {
             )
             .show(ctx, |ui| {
                 ui.horizontal_wrapped(|ui| {
-                    ui.label(mono("CATALOGUE FICTIF · AUCUNE INSTALLATION RÉELLE"));
+                    ui.label(mono("CATALOGUE DYNAMIQUE · OPÉRATIONS SIMULÉES"));
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         ui.label(mono("RUST / NATIF"));
                     });
@@ -151,6 +180,22 @@ impl StudioApp {
             .show(ctx, |ui| {
                 self.toolbar(ui);
                 ui.add_space(16.0);
+                ui.horizontal_wrapped(|ui| {
+                    if self.job.is_some() {
+                        ui.spinner();
+                    }
+                    ui.label(mono(&self.catalog_status));
+                    if ui
+                        .add_enabled(
+                            self.job.is_none(),
+                            egui::Button::new("ACTUALISER LE CATALOGUE"),
+                        )
+                        .clicked()
+                    {
+                        self.refresh_catalog(ctx);
+                    }
+                });
+                ui.add_space(10.0);
                 if let Some(notice) = self.notice.clone() {
                     theme::outline().show(ui, |ui| {
                         ui.horizontal_wrapped(|ui| {
@@ -167,7 +212,7 @@ impl StudioApp {
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
                         let indices = self.visible();
-                        if indices.is_empty() {
+                        if indices.is_empty() && !self.apps.is_empty() {
                             ui.add_space(80.0);
                             ui.heading("Aucune application trouvée");
                             ui.label(
@@ -182,7 +227,10 @@ impl StudioApp {
                             let group: Vec<_> = indices
                                 .iter()
                                 .copied()
-                                .filter(|&i| self.apps[i].installed_version.is_some() == installed)
+                                .filter(|&i| {
+                                    self.apps[i].displayed_installed_version().is_some()
+                                        == installed
+                                })
                                 .collect();
                             if group.is_empty() {
                                 continue;
@@ -191,7 +239,7 @@ impl StudioApp {
                             ui.label(mono(if installed {
                                 "VOTRE ATELIER / ÉTATS SIMULÉS"
                             } else {
-                                "À DÉCOUVRIR / LOGICIELS FICTIFS"
+                                "À DÉCOUVRIR"
                             }));
                             ui.add_space(10.0);
                             let columns = ((ui.available_width() / 320.0).floor() as usize).max(1);
@@ -250,7 +298,7 @@ impl StudioApp {
         let count = self
             .apps
             .iter()
-            .filter(|a| a.state == AppState::UpdateAvailable)
+            .filter(|a| a.state() == AppState::UpdateAvailable)
             .count();
         if ui
             .add_enabled(
@@ -260,7 +308,7 @@ impl StudioApp {
             .clicked()
         {
             for app in &mut self.apps {
-                if app.state == AppState::UpdateAvailable {
+                if app.state() == AppState::UpdateAvailable {
                     demo::start(app);
                 }
             }
@@ -275,7 +323,7 @@ impl StudioApp {
         let app = &self.apps[index];
         let color = accent(app.color);
         let frame = egui::Frame::new()
-            .fill(if app.state == AppState::UpdateAvailable {
+            .fill(if app.state() == AppState::UpdateAvailable {
                 theme::tint(app.color)
             } else {
                 BG
@@ -283,7 +331,7 @@ impl StudioApp {
             .stroke(Stroke::new(1.0_f32, BORDER));
         let card_response = ui.interact(
             egui::Rect::from_min_size(ui.next_widget_position(), egui::vec2(width, 360.0)),
-            ui.id().with(app.id).with("card"),
+            ui.id().with(&app.id).with("card"),
             Sense::click(),
         );
         ui.allocate_ui_with_layout(
@@ -300,11 +348,11 @@ impl StudioApp {
                             .inner_margin(egui::Margin::symmetric(18, 11))
                             .show(ui, |ui| {
                                 ui.horizontal(|ui| {
-                                    let version = match app.installed_version {
-                                        Some(v) if v != app.version => {
-                                            format!("{v} → {}", app.version)
+                                    let version = match app.displayed_installed_version() {
+                                        Some(v) if v != app.available_version() => {
+                                            format!("{v} → {}", app.available_version())
                                         }
-                                        _ => format!("V{}", app.version),
+                                        _ => format!("V{}", app.available_version()),
                                     };
                                     ui.label(mono(version).color(color));
                                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
@@ -315,27 +363,28 @@ impl StudioApp {
                         ui.separator();
                         egui::Frame::new().inner_margin(18).show(ui, |ui| {
                             ui.horizontal(|ui| {
-                                logo(ui, app, 54.0);
+                                logo(ui, app, 54.0, &self.images);
                                 ui.vertical(|ui| {
                                     ui.add_space(1.0);
                                     open |= ui
                                         .add(
                                             egui::Label::new(
-                                                RichText::new(app.name).size(25.0).strong(),
+                                                RichText::new(&app.name).size(25.0).strong(),
                                             )
-                                            .sense(Sense::click()),
+                                            .sense(Sense::click())
+                                            .truncate(),
                                         )
                                         .clicked();
                                     ui.add(
                                         egui::Label::new(
-                                            RichText::new(app.category).color(MUTED).size(13.0),
+                                            RichText::new(&app.category).color(MUTED).size(13.0),
                                         )
                                         .truncate(),
                                     );
                                 });
                             });
                             ui.add_space(17.0);
-                            let status_color = match app.state {
+                            let status_color = match app.state() {
                                 AppState::UpdateAvailable => Color32::from_rgb(255, 199, 74),
                                 AppState::Error { .. } => Color32::from_rgb(255, 132, 116),
                                 _ => BLUE,
@@ -346,7 +395,7 @@ impl StudioApp {
                                 .inner_margin(egui::Margin::symmetric(6, 3))
                                 .show(ui, |ui| {
                                     ui.label(
-                                        mono(app.state.label()).size(10.0).color(status_color),
+                                        mono(app.state().label()).size(10.0).color(status_color),
                                     );
                                 });
                             ui.add_space(13.0);
@@ -354,28 +403,31 @@ impl StudioApp {
                                 egui::vec2(ui.available_width(), 56.0),
                                 Sense::hover(),
                             );
-                            ui.put(
-                                description_rect,
-                                egui::Label::new(
-                                    RichText::new(app.description).size(14.0).color(MUTED),
-                                )
-                                .wrap()
-                                .halign(Align::Min),
+                            let mut job = egui::text::LayoutJob::simple(
+                                app.short_description.clone(),
+                                egui::FontId::proportional(14.0),
+                                MUTED,
+                                description_rect.width(),
                             );
-                            ui.label(mono("ÉDITION CONCEPTUELLE · 09 NOV. 2026").size(10.0));
+                            job.wrap.max_rows = 3;
+                            let galley = ui.painter().layout_job(job);
+                            ui.painter().galley(description_rect.min, galley, MUTED);
+                            ui.add(
+                                egui::Label::new(
+                                    mono(format!("{} · {}", app.publisher, app.release.published))
+                                        .size(10.0),
+                                )
+                                .truncate(),
+                            );
                             ui.add_space(12.0);
-                            match &app.state {
+                            match &app.state() {
                                 AppState::Downloading { progress, paused } => {
                                     ui.horizontal(|ui| {
                                         ui.vertical(|ui| {
                                             ui.set_width((width - 126.0).max(80.0));
                                             ui.label(
-                                                mono(format!(
-                                                    "FICTIF · {:.0} / {} MB",
-                                                    *progress * app.size_mb as f32,
-                                                    app.size_mb
-                                                ))
-                                                .size(10.0),
+                                                mono(format!("SIMULÉ · {:.0}%", *progress * 100.0))
+                                                    .size(10.0),
                                             );
                                             ui.add(
                                                 egui::ProgressBar::new(*progress)
@@ -410,8 +462,9 @@ impl StudioApp {
                                     );
                                 }
                                 _ => {
-                                    action = primary(ui, app.state.action(), ui.available_width())
-                                        .clicked();
+                                    action =
+                                        primary(ui, app.state().action(), ui.available_width())
+                                            .clicked();
                                 }
                             }
                         });
@@ -435,7 +488,7 @@ impl StudioApp {
             self.action(index);
         }
         if toggle_pause {
-            if let AppState::Downloading { paused, .. } = &mut self.apps[index].state {
+            if let Operation::SimulatedDownload { paused, .. } = &mut self.apps[index].operation {
                 *paused = !*paused;
             }
         }
@@ -457,10 +510,10 @@ impl StudioApp {
             ui.set_height(size.y - 100.0);
             let (line,_) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 2.0), Sense::hover());
             ui.painter().rect_filled(line, 0, color);
-            egui::ScrollArea::vertical().id_salt(("detail_scroll", app.id)).max_height(size.y - 100.0).show(ui, |ui| {
+            egui::ScrollArea::vertical().id_salt(("detail_scroll", &app.id)).max_height(size.y - 100.0).show(ui, |ui| {
                 egui::Frame::new().fill(theme::tint(app.color)).inner_margin(24).show(ui, |ui| {
                     ui.horizontal(|ui| {
-                        ui.label(mono(if size.x < 650.0 { "APPLICATION FICTIVE" } else { "DÉTAILS DE L’APPLICATION / FICTIVE" }));
+                        ui.label(mono(if size.x < 650.0 { "APPLICATION" } else { if app.fictional { "DÉTAILS / APPLICATION FICTIVE" } else { "DÉTAILS DE L’APPLICATION" } }));
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                             close = ui.button("×").on_hover_text("Fermer · Échap").clicked();
                             next = ui.button("›").on_hover_text("Application suivante · →").clicked();
@@ -469,28 +522,28 @@ impl StudioApp {
                     });
                     ui.add_space(14.0);
                     ui.horizontal_top(|ui| {
-                        logo(ui, app, if size.x < 650.0 {64.0} else {98.0});
+                        logo(ui, app, if size.x < 650.0 {64.0} else {98.0}, &self.images);
                         ui.vertical(|ui| {
-                            ui.heading(RichText::new(app.name).size(34.0).strong());
-                            ui.label(app.category);
+                            ui.heading(RichText::new(&app.name).size(34.0).strong());
+                            ui.label(&app.category);
                             if let Some(notice) = &self.notice { ui.colored_label(BLUE, notice); }
-                            ui.label(RichText::new(match app.installed_version { Some(v) => format!("{v} installée / {} disponible · état simulé", app.version), None => format!("Version {} · logiciel de démonstration", app.version) }).color(MUTED).size(13.0));
+                            ui.label(RichText::new(match app.displayed_installed_version() { Some(v) => format!("{v} simulée / {} disponible", app.available_version()), None => format!("Version disponible {}", app.available_version()) }).color(MUTED).size(13.0));
                         });
                     });
                     ui.add_space(16.0);
                     ui.horizontal_wrapped(|ui| {
-                        action = ui.add_enabled_ui(!app.state.busy(), |ui| primary(ui, app.state.action(), 260.0)).inner.clicked();
-                        // Fictional apps have no official sites. Do not invent destinations.
-                        ui.add_enabled(false, egui::Button::new("SITE WEB ↗")).on_disabled_hover_text("Aucun lien officiel pour cette application fictive");
-                        ui.add_enabled(false, egui::Button::new("GITHUB ↗")).on_disabled_hover_text("Aucun dépôt associé au catalogue fictif");
+                        action = ui.add_enabled_ui(!app.state().busy(), |ui| primary(ui, app.state().action(), 260.0)).inner.clicked();
+                        for (label, link) in [("SITE WEB ↗", &app.links.website), ("GITHUB ↗", &app.links.github), ("DOCUMENTATION ↗", &app.links.documentation)] {
+                            if let Some(link) = link { ui.hyperlink_to(label, link); }
+                        }
                     });
                     ui.label(mono("SIMULATION LOCALE · AUCUN LOGICIEL N’EST TÉLÉCHARGÉ OU EXÉCUTÉ").size(10.0));
                 });
                 egui::Frame::new().inner_margin(24).show(ui, |ui| {
-                    ui.label(app.description);
-                    if let AppState::Error { message } = &app.state { ui.colored_label(Color32::LIGHT_RED, message); }
-                    if let AppState::Downloading { progress, .. } | AppState::Installing { progress } = app.state {
-                        ui.label(mono(app.state.label()).color(color));
+                    ui.label(&app.description);
+                    if let AppState::Error { message } = &app.state() { ui.colored_label(Color32::LIGHT_RED, message); }
+                    if let AppState::Downloading { progress, .. } | AppState::Installing { progress } = app.state() {
+                        ui.label(mono(app.state().label()).color(color));
                         ui.add(egui::ProgressBar::new(progress).fill(color).show_percentage());
                     }
                     ui.add_space(18.0);
@@ -498,14 +551,14 @@ impl StudioApp {
                         let width = ui.available_width();
                         ui.horizontal_top(|ui| {
                             ui.allocate_ui_with_layout(egui::vec2(width*0.56-12.0,0.0), Layout::top_down(Align::Min), |ui| {
-                                self_gallery(ui, app, &mut self.slide);
+                                self_gallery(ui, app, &mut self.slide, &self.images, &self.asset_errors);
                                 ui.add_space(20.0); release(ui, app);
                             });
                             ui.add_space(14.0);
                             ui.allocate_ui_with_layout(egui::vec2(width*0.44-22.0,0.0), Layout::top_down(Align::Min), |ui| { features(ui, app); });
                         });
                     } else {
-                        self_gallery(ui, app, &mut self.slide);
+                        self_gallery(ui, app, &mut self.slide, &self.images, &self.asset_errors);
                         ui.add_space(20.0); features(ui, app);
                         ui.add_space(20.0); release(ui, app);
                     }
@@ -538,9 +591,18 @@ fn primary(ui: &mut egui::Ui, text: &str, width: f32) -> egui::Response {
     )
 }
 
-fn logo(ui: &mut egui::Ui, app: &Application, side: f32) {
+fn logo(
+    ui: &mut egui::Ui,
+    app: &Application,
+    side: f32,
+    images: &HashMap<String, egui::TextureHandle>,
+) {
     let (rect, _) = ui.allocate_exact_size(egui::vec2(side, side), Sense::hover());
     let p = ui.painter();
+    if let Some(texture) = app.logo.as_ref().and_then(|a| images.get(&a.source)) {
+        gallery::paint_image(p, rect, texture);
+        return;
+    }
     p.rect_filled(rect, (side * 0.2) as u8, accent(app.color));
     p.line_segment(
         [
@@ -552,27 +614,52 @@ fn logo(ui: &mut egui::Ui, app: &Application, side: f32) {
     p.text(
         rect.center(),
         egui::Align2::CENTER_CENTER,
-        app.monogram,
+        &app.monogram,
         egui::FontId::proportional(side * 0.43),
         BG,
     );
 }
 
-fn self_gallery(ui: &mut egui::Ui, app: &Application, slide: &mut usize) {
-    gallery::preview(ui, app, *slide, ui.available_width());
+fn self_gallery(
+    ui: &mut egui::Ui,
+    app: &Application,
+    slide: &mut usize,
+    images: &HashMap<String, egui::TextureHandle>,
+    errors: &HashMap<String, String>,
+) {
+    let count = if app.screenshots.is_empty() {
+        if app.fictional {
+            3
+        } else {
+            1
+        }
+    } else {
+        app.screenshots.len()
+    };
+    *slide %= count;
+    gallery::preview(ui, app, *slide, ui.available_width(), images);
     ui.horizontal(|ui| {
         if ui.button("‹").clicked() {
-            *slide = (*slide + 2) % 3;
+            *slide = (*slide + count - 1) % count;
         }
-        ui.label(mono(format!("{} · {}/3", gallery::CAPTIONS[*slide], *slide + 1)).size(10.0));
+        let caption = app
+            .screenshots
+            .get(*slide)
+            .map(|s| s.caption.as_str())
+            .unwrap_or(if app.fictional {
+                gallery::CAPTIONS[*slide]
+            } else {
+                "AUCUNE CAPTURE FOURNIE"
+            });
+        ui.label(mono(format!("{caption} · {}/{count}", *slide + 1)).size(10.0));
         if ui.button("›").clicked() {
-            *slide = (*slide + 1) % 3;
+            *slide = (*slide + 1) % count;
         }
     });
     let width = (ui.available_width() - 20.0) / 3.0;
-    ui.horizontal(|ui| {
-        for i in 0..3 {
-            let r = gallery::preview(ui, app, i, width);
+    ui.horizontal_wrapped(|ui| {
+        for i in 0..count {
+            let r = gallery::preview(ui, app, i, width, images);
             if r.clicked() {
                 *slide = i;
             }
@@ -586,7 +673,19 @@ fn self_gallery(ui: &mut egui::Ui, app: &Application, slide: &mut usize) {
             }
         }
     });
-    ui.label(mono("APERÇUS CONCEPTUELS ORIGINAUX · PAS DES CAPTURES LOGICIELLES").size(9.0));
+    if app.fictional && app.screenshots.is_empty() {
+        ui.label(mono("APERÇUS CONCEPTUELS · APPLICATION FICTIVE").size(9.0));
+    }
+    for asset in app
+        .logo
+        .iter()
+        .chain(app.screenshots.iter().map(|s| &s.image))
+    {
+        if let Some(error) = errors.get(&asset.source) {
+            ui.label(mono("Ressource indisponible").color(BLUE))
+                .on_hover_text(error);
+        }
+    }
 }
 
 fn features(ui: &mut egui::Ui, app: &Application) {
@@ -598,27 +697,50 @@ fn features(ui: &mut egui::Ui, app: &Application) {
             ui.horizontal(|ui| {
                 ui.label(mono(format!("{:02}", i + 1)).color(accent(app.color)));
                 ui.add_space(10.0);
-                ui.strong(feature.title);
+                ui.strong(&feature.title);
             });
-            ui.label(RichText::new(feature.description).color(MUTED).size(14.0));
+            ui.label(RichText::new(&feature.description).color(MUTED).size(14.0));
         });
     }
 }
 
 fn release(ui: &mut egui::Ui, app: &Application) {
-    ui.label(mono("02 / DERNIÈRE VERSION FICTIVE"));
+    ui.label(mono("02 / VERSION DU CATALOGUE"));
     ui.add_space(10.0);
     theme::outline().show(ui, |ui| {
         ui.label(mono("VERSION DISPONIBLE"));
-        ui.label(app.version);
-        ui.label(mono("VERSION INSTALLÉE / SIMULÉE"));
-        ui.label(app.installed_version.unwrap_or("Non installée"));
+        ui.label(app.available_version());
+        ui.label(mono("VERSION LOCALE DÉTECTÉE"));
+        ui.label(app.local.version.as_deref().unwrap_or("Non vérifiée"));
+        if let Some(version) = &app.simulation.version {
+            ui.label(mono("VERSION SIMULÉE"));
+            ui.label(version);
+        }
         ui.label(mono("TAILLE / PLATEFORMES CIBLES"));
-        ui.label(format!("{} MB · macOS / Windows", app.size_mb));
+        ui.label(if app.release.packages.is_empty() {
+            "Aucun package approuvé".to_owned()
+        } else {
+            format!("{} package(s) approuvé(s)", app.release.packages.len())
+        });
+        for platform in &app.platforms {
+            ui.label(format!("{:?} / {:?}", platform.os, platform.architectures));
+        }
+        ui.label(mono("ÉDITEUR"));
+        ui.label(&app.publisher);
     });
     ui.add_space(8.0);
-    ui.strong("Nouveautés de démonstration");
-    for note in &app.notes {
+    ui.strong("Notes de version du catalogue");
+    for previous in &app.history {
+        ui.collapsing(
+            format!("Version {} · {}", previous.version, previous.published),
+            |ui| {
+                for note in &previous.notes {
+                    ui.label(note);
+                }
+            },
+        );
+    }
+    for note in &app.release.notes {
         ui.label(RichText::new(format!("· {note}")).color(MUTED).size(14.0));
     }
 }
@@ -679,9 +801,9 @@ mod tests {
     #[test]
     fn actual_pointer_clicks_trigger_actions_and_open_details() {
         let ctx = egui::Context::default();
-        let mut app = StudioApp::new(&ctx);
+        let mut app = StudioApp::test_app(&ctx);
         click_text(&mut app, &ctx, "SIMULER LA MISE À JOUR");
-        assert!(matches!(app.apps[0].state, AppState::Downloading { .. }));
+        assert!(matches!(app.apps[0].state(), AppState::Downloading { .. }));
         assert_eq!(
             app.selected, None,
             "action must not open the enclosing card"
@@ -694,7 +816,7 @@ mod tests {
     #[test]
     fn search_sort_and_navigation_follow_visible_catalog() {
         let ctx = egui::Context::default();
-        let mut app = StudioApp::new(&ctx);
+        let mut app = StudioApp::test_app(&ctx);
         app.query = "vidéo".into();
         assert_eq!(app.visible(), vec![0]);
         app.select(0);
@@ -715,7 +837,7 @@ mod tests {
     fn native_ui_lays_out_all_states_and_details_at_multiple_sizes() {
         for width in [440.0, 800.0, 1440.0] {
             let ctx = egui::Context::default();
-            let mut app = StudioApp::new(&ctx);
+            let mut app = StudioApp::test_app(&ctx);
             for selected in [None, Some(0), Some(7)] {
                 app.selected = selected;
                 for _ in 0..3 {

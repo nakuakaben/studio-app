@@ -1,0 +1,5 @@
+{
+  "source": {"kind": "local", "path": "obs-catalog.json"},
+  "allowed_asset_hosts": [],
+  "demo_scenarios": false
+}

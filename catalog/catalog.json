@@ -1,0 +1,454 @@
+{
+  "schema_version": 1,
+  "name": "Studio App · catalogue de démonstration",
+  "applications": [
+    {
+      "id": "sequence",
+      "name": "Sequence",
+      "short_description": "Du premier plan au dernier raccord. Un espace de création pour donner du rythme à vos histoires.",
+      "description": "Du premier plan au dernier raccord. Un espace de création pour donner du rythme à vos histoires.",
+      "category": "Montage vidéo et étalonnage",
+      "color": [
+        173,
+        133,
+        255
+      ],
+      "monogram": "Sq",
+      "publisher": "Studio App · démonstration",
+      "fictional": true,
+      "logo": null,
+      "screenshots": [],
+      "features": [
+        {
+          "title": "Un atelier à votre mesure",
+          "description": "Un espace clair et des outils contextuels pour rester concentré sur la création."
+        },
+        {
+          "title": "Un travail toujours précis",
+          "description": "Ajustez chaque détail dans un environnement cohérent."
+        },
+        {
+          "title": "Des projets indépendants",
+          "description": "Le logiciel cible restera utilisable sans Studio App."
+        }
+      ],
+      "release": {
+        "version": "1.8.0",
+        "published": "2026-11-09",
+        "notes": [
+          "Présentation du catalogue dynamique de démonstration."
+        ],
+        "packages": []
+      },
+      "history": [],
+      "links": {},
+      "platforms": [
+        {
+          "os": "macos",
+          "architectures": [
+            "aarch64",
+            "x86_64"
+          ]
+        },
+        {
+          "os": "windows",
+          "architectures": [
+            "x86_64"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "prisme",
+      "name": "Prisme",
+      "short_description": "La lumière, la couleur, le détail. Retrouvez toute la latitude de vos images dans un atelier photographique précis.",
+      "description": "La lumière, la couleur, le détail. Retrouvez toute la latitude de vos images dans un atelier photographique précis.",
+      "category": "Photographie et développement",
+      "color": [
+        255,
+        184,
+        58
+      ],
+      "monogram": "Pr",
+      "publisher": "Studio App · démonstration",
+      "fictional": true,
+      "logo": null,
+      "screenshots": [],
+      "features": [
+        {
+          "title": "Un atelier à votre mesure",
+          "description": "Un espace clair et des outils contextuels pour rester concentré sur la création."
+        },
+        {
+          "title": "Un travail toujours précis",
+          "description": "Ajustez chaque détail dans un environnement cohérent."
+        },
+        {
+          "title": "Des projets indépendants",
+          "description": "Le logiciel cible restera utilisable sans Studio App."
+        }
+      ],
+      "release": {
+        "version": "2.4.0",
+        "published": "2026-11-09",
+        "notes": [
+          "Présentation du catalogue dynamique de démonstration."
+        ],
+        "packages": []
+      },
+      "history": [],
+      "links": {},
+      "platforms": [
+        {
+          "os": "macos",
+          "architectures": [
+            "aarch64",
+            "x86_64"
+          ]
+        },
+        {
+          "os": "windows",
+          "architectures": [
+            "x86_64"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "onde",
+      "name": "Onde",
+      "short_description": "Enregistrez une idée. Construisez un univers. Un environnement dédié à la création et au mixage sonore.",
+      "description": "Enregistrez une idée. Construisez un univers. Un environnement dédié à la création et au mixage sonore.",
+      "category": "Création sonore et mixage",
+      "color": [
+        83,
+        181,
+        255
+      ],
+      "monogram": "On",
+      "publisher": "Studio App · démonstration",
+      "fictional": true,
+      "logo": null,
+      "screenshots": [],
+      "features": [
+        {
+          "title": "Un atelier à votre mesure",
+          "description": "Un espace clair et des outils contextuels pour rester concentré sur la création."
+        },
+        {
+          "title": "Un travail toujours précis",
+          "description": "Ajustez chaque détail dans un environnement cohérent."
+        },
+        {
+          "title": "Des projets indépendants",
+          "description": "Le logiciel cible restera utilisable sans Studio App."
+        }
+      ],
+      "release": {
+        "version": "1.2.0",
+        "published": "2026-11-09",
+        "notes": [
+          "Présentation du catalogue dynamique de démonstration."
+        ],
+        "packages": []
+      },
+      "history": [],
+      "links": {},
+      "platforms": [
+        {
+          "os": "macos",
+          "architectures": [
+            "aarch64",
+            "x86_64"
+          ]
+        },
+        {
+          "os": "windows",
+          "architectures": [
+            "x86_64"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "forme",
+      "name": "Forme",
+      "short_description": "Des tracés simples aux compositions complexes. Dessinez librement avec des outils qui suivent votre geste.",
+      "description": "Des tracés simples aux compositions complexes. Dessinez librement avec des outils qui suivent votre geste.",
+      "category": "Illustration vectorielle",
+      "color": [
+        255,
+        108,
+        85
+      ],
+      "monogram": "Fo",
+      "publisher": "Studio App · démonstration",
+      "fictional": true,
+      "logo": null,
+      "screenshots": [],
+      "features": [
+        {
+          "title": "Un atelier à votre mesure",
+          "description": "Un espace clair et des outils contextuels pour rester concentré sur la création."
+        },
+        {
+          "title": "Un travail toujours précis",
+          "description": "Ajustez chaque détail dans un environnement cohérent."
+        },
+        {
+          "title": "Des projets indépendants",
+          "description": "Le logiciel cible restera utilisable sans Studio App."
+        }
+      ],
+      "release": {
+        "version": "3.1.0",
+        "published": "2026-11-09",
+        "notes": [
+          "Présentation du catalogue dynamique de démonstration."
+        ],
+        "packages": []
+      },
+      "history": [],
+      "links": {},
+      "platforms": [
+        {
+          "os": "macos",
+          "architectures": [
+            "aarch64",
+            "x86_64"
+          ]
+        },
+        {
+          "os": "windows",
+          "architectures": [
+            "x86_64"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "folio",
+      "name": "Folio",
+      "short_description": "Mettez vos idées en page. Composez des publications avec un contrôle précis du texte et de la grille.",
+      "description": "Mettez vos idées en page. Composez des publications avec un contrôle précis du texte et de la grille.",
+      "category": "Mise en page et édition",
+      "color": [
+        117,
+        207,
+        168
+      ],
+      "monogram": "Fl",
+      "publisher": "Studio App · démonstration",
+      "fictional": true,
+      "logo": null,
+      "screenshots": [],
+      "features": [
+        {
+          "title": "Un atelier à votre mesure",
+          "description": "Un espace clair et des outils contextuels pour rester concentré sur la création."
+        },
+        {
+          "title": "Un travail toujours précis",
+          "description": "Ajustez chaque détail dans un environnement cohérent."
+        },
+        {
+          "title": "Des projets indépendants",
+          "description": "Le logiciel cible restera utilisable sans Studio App."
+        }
+      ],
+      "release": {
+        "version": "1.5.0",
+        "published": "2026-11-09",
+        "notes": [
+          "Présentation du catalogue dynamique de démonstration."
+        ],
+        "packages": []
+      },
+      "history": [],
+      "links": {},
+      "platforms": [
+        {
+          "os": "macos",
+          "architectures": [
+            "aarch64",
+            "x86_64"
+          ]
+        },
+        {
+          "os": "windows",
+          "architectures": [
+            "x86_64"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "trame",
+      "name": "Trame",
+      "short_description": "Des premières intentions aux parcours interactifs. Un atelier pour concevoir des interfaces cohérentes.",
+      "description": "Des premières intentions aux parcours interactifs. Un atelier pour concevoir des interfaces cohérentes.",
+      "category": "Interfaces et prototypage",
+      "color": [
+        231,
+        142,
+        203
+      ],
+      "monogram": "Tr",
+      "publisher": "Studio App · démonstration",
+      "fictional": true,
+      "logo": null,
+      "screenshots": [],
+      "features": [
+        {
+          "title": "Un atelier à votre mesure",
+          "description": "Un espace clair et des outils contextuels pour rester concentré sur la création."
+        },
+        {
+          "title": "Un travail toujours précis",
+          "description": "Ajustez chaque détail dans un environnement cohérent."
+        },
+        {
+          "title": "Des projets indépendants",
+          "description": "Le logiciel cible restera utilisable sans Studio App."
+        }
+      ],
+      "release": {
+        "version": "0.9.0",
+        "published": "2026-11-09",
+        "notes": [
+          "Présentation du catalogue dynamique de démonstration."
+        ],
+        "packages": []
+      },
+      "history": [],
+      "links": {},
+      "platforms": [
+        {
+          "os": "macos",
+          "architectures": [
+            "aarch64",
+            "x86_64"
+          ]
+        },
+        {
+          "os": "windows",
+          "architectures": [
+            "x86_64"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "relief",
+      "name": "Relief",
+      "short_description": "Explorez le volume, façonnez la matière et composez des scènes dans un espace de travail essentiel.",
+      "description": "Explorez le volume, façonnez la matière et composez des scènes dans un espace de travail essentiel.",
+      "category": "Modélisation et création 3D",
+      "color": [
+        144,
+        162,
+        255
+      ],
+      "monogram": "Re",
+      "publisher": "Studio App · démonstration",
+      "fictional": true,
+      "logo": null,
+      "screenshots": [],
+      "features": [
+        {
+          "title": "Un atelier à votre mesure",
+          "description": "Un espace clair et des outils contextuels pour rester concentré sur la création."
+        },
+        {
+          "title": "Un travail toujours précis",
+          "description": "Ajustez chaque détail dans un environnement cohérent."
+        },
+        {
+          "title": "Des projets indépendants",
+          "description": "Le logiciel cible restera utilisable sans Studio App."
+        }
+      ],
+      "release": {
+        "version": "2.0.0",
+        "published": "2026-11-09",
+        "notes": [
+          "Présentation du catalogue dynamique de démonstration."
+        ],
+        "packages": []
+      },
+      "history": [],
+      "links": {},
+      "platforms": [
+        {
+          "os": "macos",
+          "architectures": [
+            "aarch64",
+            "x86_64"
+          ]
+        },
+        {
+          "os": "windows",
+          "architectures": [
+            "x86_64"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "lueur",
+      "name": "Lueur",
+      "short_description": "Animez une composition, modulez un mouvement, faites vivre vos images. Chaque image compte.",
+      "description": "Animez une composition, modulez un mouvement, faites vivre vos images. Chaque image compte.",
+      "category": "Animation et effets visuels",
+      "color": [
+        102,
+        211,
+        219
+      ],
+      "monogram": "Lu",
+      "publisher": "Studio App · démonstration",
+      "fictional": true,
+      "logo": null,
+      "screenshots": [],
+      "features": [
+        {
+          "title": "Un atelier à votre mesure",
+          "description": "Un espace clair et des outils contextuels pour rester concentré sur la création."
+        },
+        {
+          "title": "Un travail toujours précis",
+          "description": "Ajustez chaque détail dans un environnement cohérent."
+        },
+        {
+          "title": "Des projets indépendants",
+          "description": "Le logiciel cible restera utilisable sans Studio App."
+        }
+      ],
+      "release": {
+        "version": "1.3.0",
+        "published": "2026-11-09",
+        "notes": [
+          "Présentation du catalogue dynamique de démonstration."
+        ],
+        "packages": []
+      },
+      "history": [],
+      "links": {},
+      "platforms": [
+        {
+          "os": "macos",
+          "architectures": [
+            "aarch64",
+            "x86_64"
+          ]
+        },
+        {
+          "os": "windows",
+          "architectures": [
+            "x86_64"
+          ]
+        }
+      ]
+    }
+  ]
+}

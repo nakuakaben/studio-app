@@ -1,0 +1,8 @@
+{
+  "source": {
+    "kind": "local",
+    "path": "catalog.json"
+  },
+  "allowed_asset_hosts": [],
+  "demo_scenarios": true
+}
