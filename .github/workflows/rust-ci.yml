@@ -29,6 +29,9 @@ jobs:
       - name: Format
         if: runner.os == 'Linux'
         run: cargo fmt --all -- --check
+      - name: Catalog workflow tests (offline)
+        if: runner.os == 'Linux'
+        run: python3 -m unittest discover -s tests -p 'test_catalog_automation.py'
       - name: Clippy
         run: cargo clippy --locked --all-targets --all-features -- -D warnings
       - name: Test

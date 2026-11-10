@@ -66,6 +66,11 @@ fictives connues du prototype ; il ne déclare aucune installation réelle.
 
 ## Ajouter une application
 
+Pour notre gamme distribuée depuis des dépôts GitHub indépendants, utiliser le
+[processus de distribution](DISTRIBUTION.md) : inscription éditoriale préalable,
+synchronisation des releases en proposition, puis approbation Ed25519 séparée.
+Le JSON ci-dessous reste utile pour le catalogue local et les démonstrations.
+
 1. Préparer les métadonnées approuvées d'un logiciel de notre gamme dans le
    tableau `applications`. Les exemples montrent la structure ; ne pas reprendre
    leurs identifiants, versions ou règles pour un futur produit.
