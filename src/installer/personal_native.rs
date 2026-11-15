@@ -297,14 +297,38 @@ fn install_windows(
     emit: &mut impl FnMut(Progress),
     before_install: impl FnOnce() -> Result<()>,
 ) -> Result<native::Report> {
+    use sha2::{Digest, Sha256};
     use std::io::Write;
     let rules = plan
         .app
         .detection
         .as_ref()
         .ok_or_else(|| Failure::permanent("Identité NSIS absente."))?;
-    native::windows::pe(package).map_err(Failure::permanent)?;
-    let mut zone = package.as_os_str().to_os_string();
+    // Preserve the publisher's exact filename in the Windows consent dialog.
+    // A temporary download name ("studio-approved-package-*.exe") is misleading.
+    // Reverify the independently staged copy before giving it to Windows.
+    let filename = "HMP-V2-0.1.0-beta.1-windows-x64-setup.exe";
+    if !matches!(plan.recipe, Recipe::PersonalHmpNsis)
+        || !super::personal::matches_package(&plan.app, &plan.package)
+        || !plan.package.url.ends_with(&format!("/{filename}"))
+    {
+        return Err(Failure::permanent("Nom ou identité NSIS non approuvés."));
+    }
+    let staging = tempfile::tempdir()?;
+    let installer = staging.path().join(filename);
+    fs::copy(package, &installer)?;
+    let bytes = fs::read(&installer)?;
+    if bytes.len() as u64 != plan.package.size_bytes
+        || !super::approval::hex(&Sha256::digest(&bytes))
+            .eq_ignore_ascii_case(&plan.package.sha256)
+    {
+        return Err(Failure::permanent(
+            "La copie NSIS ne correspond pas au fichier HMP approuvé.",
+        ));
+    }
+    drop(bytes);
+    native::windows::pe(&installer).map_err(Failure::permanent)?;
+    let mut zone = installer.as_os_str().to_os_string();
     zone.push(":Zone.Identifier");
     let mut mark = fs::OpenOptions::new()
         .write(true)
@@ -324,12 +348,18 @@ fn install_windows(
     drop(mark);
     before_install()?;
     emit(Progress::phase(Phase::Installing));
-    let outcome = studio_windows_host::execute_attachment(package, &plan.package.url);
+    let outcome = studio_windows_host::execute_attachment(&installer, &plan.package.url);
     emit(Progress::phase(Phase::Detecting));
     let report = native::detect(rules);
-    let status = outcome.map_err(|e| Failure::permanent(format!(
-        "Windows n’a pas autorisé ou confirmé l’exécution de NSIS : {e}. Consultez la release officielle."
-    )))?;
+    let status = outcome.map_err(|e| {
+        if e.contains("0x800704C7") || e.contains("0x800704c7") {
+            Failure::retry("Windows a interrompu l'ouverture de l'installateur HMP (0x800704C7). Si SmartScreen était inaccessible, vérifiez sa disponibilité et la connexion du poste. Aucun contournement de sécurité n'est effectué.")
+        } else {
+            Failure::permanent(format!(
+                "Windows n’a pas autorisé ou confirmé l’exécution de NSIS : {e}. Consultez la release officielle."
+            ))
+        }
+    })?;
     if status != 0 {
         return Err(Failure::permanent(format!(
             "NSIS a terminé avec le code {status}. Vérifiez le résultat dans Windows et la disponibilité de WebView2 Evergreen."
