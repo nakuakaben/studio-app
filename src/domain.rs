@@ -67,6 +67,7 @@ pub struct Simulation {
 
 pub struct Application {
     pub metadata: AppMetadata,
+    pub manual_release: Option<crate::catalog::manual::ManualRelease>,
     pub local: LocalInstallation,
     pub operation: Operation,
     pub simulation: Simulation,
@@ -81,6 +82,7 @@ impl Application {
     pub fn new(metadata: AppMetadata) -> Self {
         Self {
             metadata,
+            manual_release: None,
             local: LocalInstallation::default(),
             operation: Operation::Idle,
             simulation: Simulation::default(),
@@ -131,8 +133,9 @@ impl Application {
                 None if !self.local.installations.is_empty() => AppState::Installed,
                 None => AppState::NotInstalled,
                 Some(v) => {
-                    if crate::native::model::compare_versions(v, self.available_version())
-                        == Some(std::cmp::Ordering::Less)
+                    if !self.manual_version_is_ambiguous()
+                        && crate::native::model::compare_versions(v, self.available_version())
+                            == Some(std::cmp::Ordering::Less)
                     {
                         AppState::UpdateAvailable
                     } else {
@@ -141,6 +144,22 @@ impl Application {
                 }
             },
         }
+    }
+    pub fn manual_version_is_ambiguous(&self) -> bool {
+        let Some((os, _)) = crate::installer::model::platform() else {
+            return false;
+        };
+        self.manual_release
+            .as_ref()
+            .zip(self.local.version.as_deref())
+            .is_some_and(|(release, installed)| release.version_is_ambiguous(&os, installed))
+    }
+    pub fn manual_installer_page(&self) -> Option<&str> {
+        let (os, arch) = crate::installer::model::platform()?;
+        self.manual_release
+            .as_ref()
+            .filter(|release| release.supports(&os, &arch))
+            .map(|release| release.page.as_str())
     }
     pub fn size_mb(&self) -> f64 {
         let selected = crate::installer::model::platform().and_then(|(os, arch)| {

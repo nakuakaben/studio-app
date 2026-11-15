@@ -4,5 +4,6 @@
     "path": "catalog.json"
   },
   "allowed_asset_hosts": [],
+  "manual_release": "hyper-media-puller.json",
   "demo_scenarios": true
 }

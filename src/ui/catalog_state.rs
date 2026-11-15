@@ -48,6 +48,7 @@ impl StudioApp {
                         app.operation=Operation::NativeError(crate::installer::Failure::permanent("Catalogue modifié pendant l’opération ; annulation demandée. Actualisez après la fin de l’opération pour vérifier l’état local."));
                     }
                     app.metadata = metadata;
+                    app.manual_release = None;
                     app
                 } else {
                     Application::new(metadata)
@@ -90,6 +91,15 @@ impl StudioApp {
                     );
                     self.catalog_origin = Some(loaded.origin);
                     self.replace_catalog(loaded.catalog.applications, demo);
+                    if let Some(handoff) = loaded.manual_release {
+                        if let Some(app) = self
+                            .apps
+                            .iter_mut()
+                            .find(|app| app.id == handoff.application_id)
+                        {
+                            app.manual_release = Some(handoff);
+                        }
+                    }
                 }
                 Event::Asset { source, result } => match result {
                     Ok(raster) => {
@@ -150,6 +160,7 @@ mod tests {
         let loaded = loader::Loaded {
             catalog: crate::catalog::parse(include_bytes!("../../tests/fixtures/valid.json"))
                 .unwrap(),
+            manual_release: None,
             origin: Origin::Cache,
             warning: Some("Hors ligne".into()),
         };
