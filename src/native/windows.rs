@@ -112,6 +112,22 @@ pub fn detect(
     }
     report
 }
+#[cfg(any(windows, test))]
+fn unquote_location(path: &str) -> &str {
+    path.strip_prefix('"')
+        .and_then(|s| s.strip_suffix('"'))
+        .unwrap_or(path)
+}
+
+#[cfg(test)]
+#[test]
+fn nsis_location_strips_only_paired_quotes() {
+    assert_eq!(
+        unquote_location(r#""C:\Users\User\AppData\Local\HMP""#),
+        r"C:\Users\User\AppData\Local\HMP"
+    );
+    assert_eq!(unquote_location(r#""C:\HMP"#), r#""C:\HMP"#);
+}
 #[cfg(windows)]
 pub fn records(rule: &WindowsRule) -> Vec<Result<Record, String>> {
     use winreg::{enums::*, RegKey};
@@ -144,7 +160,7 @@ pub fn records(rule: &WindowsRule) -> Vec<Result<Record, String>> {
                 Ok(Record {
                     key: rule.uninstall_key.clone(),
                     publisher: read("Publisher")?,
-                    directory: PathBuf::from(read("InstallLocation")?),
+                    directory: PathBuf::from(unquote_location(&read("InstallLocation")?)),
                     version: read("DisplayVersion").ok(),
                     user,
                     bits,

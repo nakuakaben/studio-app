@@ -1,0 +1,26 @@
+{
+  "github": {"owner": "nakuakaben", "repository": "hyper-media-puller"},
+  "metadata": {
+    "id": "hyper-media-puller",
+    "name": "Hyper Media Puller",
+    "publisher": "TKT Prod",
+    "short_description": "Transfert de médias depuis les enregistreurs HyperDeck.",
+    "description": "Repérez vos enregistreurs HyperDeck sur le réseau local, parcourez leurs médias et organisez les transferts dans une file commune. HMP peut vérifier les copies avec SHA-256.",
+    "category": "Production vidéo",
+    "color": [83, 186, 193],
+    "monogram": "HMP",
+    "logo": null,
+    "platforms": [
+      {"os": "macos", "architectures": ["aarch64"]},
+      {"os": "windows", "architectures": ["x86_64"]}
+    ],
+    "detection": {
+      "macos": {"bundle_id": "fr.tktprod.hyperdeck-media-puller.v2.preview", "bundle_paths": ["HMP.app"]},
+      "windows": {"uninstall_key": "HMP", "publisher": "tktprod", "executable": "hmp-v2-preview.exe"}
+    }
+  },
+  "installers": [
+    {"os": "macos", "architecture": "aarch64", "filename": "HMP-V2-{version}-macos-arm64.dmg"},
+    {"os": "windows", "architecture": "x86_64", "filename": "HMP-V2-{version}-windows-x64-setup.exe"}
+  ]
+}

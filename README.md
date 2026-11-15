@@ -38,6 +38,10 @@ empreintes et approbation Ed25519 hors ligne avant publication du catalogue.
 Le registre de distribution livré est vide et les workflows d’écriture sont
 désactivés par défaut ; aucune vraie application n’est publiée.
 
+[Hyper Media Puller](docs/HYPER_MEDIA_PULLER.md) est le premier logiciel réel
+du catalogue par défaut. Studio App propose la release compatible et ouvre
+l’installateur officiel via sa page GitHub ; l’installation reste manuelle.
+
 ## Lancer
 
 Installer Rust stable depuis [rustup.rs](https://rustup.rs), puis depuis le dépôt :

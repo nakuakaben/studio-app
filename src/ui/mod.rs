@@ -256,7 +256,7 @@ impl StudioApp {
                             if let Some(link) = link { ui.hyperlink_to(label, link); }
                         }
                     });
-                    ui.label(mono(if app.fictional {"SIMULATION LOCALE · AUCUN LOGICIEL N’EST TÉLÉCHARGÉ OU EXÉCUTÉ"}else{"INSTALLATION ET OUVERTURE NATIVES · MISES À JOUR DÉSACTIVÉES"}).size(10.0));
+                    ui.label(mono(if app.fictional {"SIMULATION LOCALE · AUCUN LOGICIEL N’EST TÉLÉCHARGÉ OU EXÉCUTÉ"}else if app.manual_release.is_some() {"INSTALLATION ET MISE À JOUR VIA LA RELEASE OFFICIELLE"} else{"INSTALLATION ET OUVERTURE NATIVES · MISES À JOUR DÉSACTIVÉES"}).size(10.0));
                 });
                 egui::Frame::new().inner_margin(24).show(ui, |ui| {
                     ui.label(&app.description);
@@ -294,7 +294,7 @@ impl StudioApp {
         if action {
             self.action(index);
         }
-        self.dispatch(index, native_action);
+        self.dispatch(ctx, index, native_action);
     }
 }
 
@@ -491,7 +491,9 @@ fn release(ui: &mut egui::Ui, app: &Application) {
             ui.label(version);
         }
         ui.label(mono("TAILLE / PLATEFORMES CIBLES"));
-        ui.label(if app.release.packages.is_empty() {
+        ui.label(if app.manual_release.is_some() {
+            "Installation manuelle depuis GitHub".to_owned()
+        } else if app.release.packages.is_empty() {
             "Aucun package approuvé".to_owned()
         } else {
             format!("{} package(s) approuvé(s)", app.release.packages.len())

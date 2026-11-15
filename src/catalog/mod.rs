@@ -2,6 +2,7 @@ pub mod assets;
 pub mod cache;
 pub mod github;
 pub mod loader;
+pub mod manual;
 pub mod model;
 pub mod security;
 mod validation;

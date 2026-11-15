@@ -68,6 +68,8 @@ pub struct Config {
     pub allowed_asset_hosts: Vec<String>,
     #[serde(default)]
     pub demo_scenarios: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub manual_release: Option<String>,
 }
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
@@ -100,6 +102,9 @@ impl Settings {
             Source::Https { url } => {
                 security::https_url(url)?;
             }
+        }
+        if let Some(path) = &config.manual_release {
+            security::relative_path(path)?;
         }
         if config.allowed_asset_hosts.len() > 16 {
             return Err(Error::invalid("Maximum 16 hôtes de ressources"));
@@ -164,9 +169,15 @@ pub struct Loaded {
     pub catalog: Catalog,
     pub origin: Origin,
     pub warning: Option<String>,
+    pub manual_release: Option<super::manual::ManualRelease>,
 }
 
 pub fn load(settings: &Settings, http: &dyn Transport) -> Result<Loaded> {
+    let mut loaded = load_base(settings, http)?;
+    super::manual::enrich(settings, &mut loaded, http);
+    Ok(loaded)
+}
+fn load_base(settings: &Settings, http: &dyn Transport) -> Result<Loaded> {
     let result = (|| {
         let bytes = match &settings.config.source {
             Source::Local { path } => read_bounded(
@@ -188,6 +199,7 @@ pub fn load(settings: &Settings, http: &dyn Transport) -> Result<Loaded> {
                 Source::Https { .. } => Origin::Remote,
             },
             warning,
+            manual_release: None,
         })
     })();
     match result {
@@ -202,6 +214,7 @@ pub fn load(settings: &Settings, http: &dyn Transport) -> Result<Loaded> {
                     catalog,
                     origin: Origin::Cache,
                     warning: Some(format!("{error} · données du cache")),
+                    manual_release: None,
                 }),
                 Err(_) => Err(error),
             }

@@ -7,6 +7,7 @@ pub(super) fn columns(width: f32) -> usize {
 pub(super) enum Action {
     Open,
     Run,
+    OfficialInstaller,
     Details,
     Pause,
     Cancel,
@@ -80,11 +81,15 @@ impl StudioApp {
             .show(ctx, |ui| {
                 ui.horizontal_wrapped(|ui| {
                     ui.label(
-                        mono(if self.apps.iter().any(|app| !app.fictional) {
-                            "INSTALLATION ET OUVERTURE NATIVES"
-                        } else {
-                            "DÉMO FICTIVE · OPÉRATIONS SIMULÉES"
-                        })
+                        mono(
+                            if self.apps.iter().any(|app| app.manual_release.is_some()) {
+                                "INSTALLATEUR OFFICIEL · OUVERTURE NATIVE"
+                            } else if self.apps.iter().any(|app| !app.fictional) {
+                                "INSTALLATION ET OUVERTURE NATIVES"
+                            } else {
+                                "DÉMO FICTIVE · OPÉRATIONS SIMULÉES"
+                            },
+                        )
                         .color(blue),
                     );
                     ui.separator();
@@ -292,10 +297,15 @@ impl StudioApp {
             }
         });
     }
-    pub(super) fn dispatch(&mut self, index: usize, action: Option<Action>) {
+    pub(super) fn dispatch(&mut self, ctx: &egui::Context, index: usize, action: Option<Action>) {
         match action {
             Some(Action::Details) => self.select(index),
             Some(Action::Run) => self.action(index),
+            Some(Action::OfficialInstaller) => {
+                if let Some(page) = self.apps[index].manual_installer_page() {
+                    ctx.open_url(egui::OpenUrl::new_tab(page));
+                }
+            }
             Some(Action::Open) => self.open_application(index),
             Some(Action::Pause) => {
                 if let Operation::SimulatedDownload { paused, .. } = &mut self.apps[index].operation
@@ -427,7 +437,14 @@ impl StudioApp {
         });
         body.add_space(8.0);
         body.label(
-            RichText::new(if app.release.packages.is_empty() {
+            RichText::new(if app.manual_release.is_some() {
+                if app.manual_installer_page().is_some() {
+                    "Installateur officiel sur GitHub"
+                } else {
+                    "Plateforme non prise en charge"
+                }
+                .into()
+            } else if app.release.packages.is_empty() {
                 if app.fictional {
                     "Aucun package approuvé · simulation"
                 } else {
@@ -476,7 +493,7 @@ impl StudioApp {
         if response.clicked() && action.is_none() {
             action = Some(Action::Details);
         }
-        self.dispatch(index, action);
+        self.dispatch(ui.ctx(), index, action);
     }
     fn list_row(&mut self, ui: &mut egui::Ui, index: usize) {
         let app = &self.apps[index];
@@ -572,23 +589,24 @@ impl StudioApp {
         } else {
             "Cliquez sur le nom ou sur … pour ouvrir la fiche."
         });
-        self.dispatch(index, action);
+        self.dispatch(ui.ctx(), index, action);
     }
 }
 fn status_label(app: &Application) -> String {
     let state = app.state();
-    let label =
-        if !app.fictional && !app.local.installations.is_empty() && app.local.version.is_none() {
-            "INSTALLÉ · VERSION INCONNUE"
-        } else if !app.fictional
-            && app.local.version.as_ref().is_some_and(|v| {
-                crate::native::model::compare_versions(v, app.available_version()).is_none()
-            })
-        {
-            "INSTALLÉ · VERSION NON COMPARABLE"
-        } else {
-            state.label()
-        };
+    let label = if app.manual_version_is_ambiguous() {
+        "INSTALLÉ · BÊTA NON IDENTIFIÉE"
+    } else if !app.fictional && !app.local.installations.is_empty() && app.local.version.is_none() {
+        "INSTALLÉ · VERSION INCONNUE"
+    } else if !app.fictional
+        && app.local.version.as_ref().is_some_and(|v| {
+            crate::native::model::compare_versions(v, app.available_version()).is_none()
+        })
+    {
+        "INSTALLÉ · VERSION NON COMPARABLE"
+    } else {
+        state.label()
+    };
     if app.fictional && (app.simulation.version.is_some() || app.operation != Operation::Idle) {
         format!("{label} · SIMULÉ")
     } else {
@@ -598,8 +616,9 @@ fn status_label(app: &Application) -> String {
 fn version(app: &Application) -> String {
     match app.displayed_installed_version() {
         Some(v)
-            if crate::native::model::compare_versions(v, app.available_version())
-                == Some(std::cmp::Ordering::Less) =>
+            if !app.manual_version_is_ambiguous()
+                && crate::native::model::compare_versions(v, app.available_version())
+                    == Some(std::cmp::Ordering::Less) =>
         {
             format!("{v} → {}", app.available_version())
         }
@@ -699,7 +718,9 @@ pub(super) fn actions(ui: &mut egui::Ui, app: &Application, action: &mut Option<
         state => {
             if app.installed() {
                 let update = state == AppState::UpdateAvailable;
-                let open_width = if update { width * 0.36 } else { width };
+                let manual = app.manual_installer_page().is_some();
+            let ambiguous = manual && app.manual_version_is_ambiguous();
+            let open_width = if update || ambiguous { width * 0.36 } else { width };
                 if ui
                     .add_sized(
                         [open_width, 38.0],
@@ -714,20 +735,28 @@ pub(super) fn actions(ui: &mut egui::Ui, app: &Application, action: &mut Option<
                 {
                     *action = Some(Action::Open);
                 }
-                if update
+                if (update || ambiguous)
                     && ui
-                        .add_enabled_ui(app.fictional, |ui| {
-                            primary(ui, "METTRE À JOUR", width - open_width - 6.0)
+                        .add_enabled_ui(app.fictional || manual, |ui| {
+                            primary(ui, if ambiguous { "VERSIONS ↗" } else if manual { "MISE À JOUR ↗" } else { "METTRE À JOUR" }, width - open_width - 6.0)
                         })
                         .inner
                         .on_hover_text(if app.fictional {
                             "Simuler la mise à jour"
+                        } else if ambiguous {
+                            "Le bundle local ne déclare pas sa révision bêta ; consulter la release officielle"
+                        } else if manual {
+                            "Ouvrir la release officielle ; quitter l’application avant la mise à jour manuelle"
                         } else {
                             "Mise à jour non prise en charge à cette étape"
                         })
                         .clicked()
                 {
-                    *action = Some(Action::Run);
+                    *action = Some(if manual {Action::OfficialInstaller} else {Action::Run});
+                }
+            } else if app.manual_installer_page().is_some() {
+                if primary(ui,"INSTALLATEUR ↗",width).on_hover_text("Ouvrir la release officielle et suivre le guide d’installation").clicked() {
+                    *action=Some(Action::OfficialInstaller);
                 }
             } else if ui
                 .add_enabled_ui(app.fictional || (crate::installer::model::can_request(&app.metadata) && !matches!(&app.operation,Operation::NativeError(e) if !e.retryable)), |ui| {
