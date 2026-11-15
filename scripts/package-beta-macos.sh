@@ -47,6 +47,16 @@ hdiutil create -ov -volname "Studio App" -srcfolder "$staging" -format UDZO \
 
 (
     cd "$output_dir"
-    hdiutil verify Studio-App-macos-arm64.dmg
+    # The macOS runner can briefly keep the freshly created image busy.
+    # Retry a bounded number of times; never accept an unverified image.
+    attempt=1
+    while ! hdiutil verify Studio-App-macos-arm64.dmg; do
+        if [ "$attempt" -ge 3 ]; then
+            echo "Échec définitif de la vérification DMG après 3 tentatives" >&2
+            exit 1
+        fi
+        attempt=$((attempt + 1))
+        sleep 3
+    done
     shasum -a 256 Studio-App-macos-arm64.dmg > SHA256SUMS.txt
 )
