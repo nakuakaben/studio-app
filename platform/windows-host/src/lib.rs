@@ -26,28 +26,28 @@ pub fn architecture() -> Option<Architecture> {
     }
 }
 
-/// Start a marked download through Windows Attachment Execution Services.
-/// The OS handles policy, security UI and the default open verb.
-pub fn execute_attachment(path: &std::path::Path, source: &str) -> Result<u32, String> {
+/// Open an already SHA-256-verified and Internet-marked NSIS installer through
+/// Windows Shell. Do not bypass the Mark of the Web, SmartScreen, or UAC.
+/// The caller must obtain explicit user consent before calling this function.
+pub fn execute_attachment(path: &std::path::Path, _source: &str) -> Result<u32, String> {
     use std::os::windows::ffi::OsStrExt;
     use windows::{
         core::PCWSTR,
         Win32::{
-            Foundation::{CloseHandle, HANDLE, HWND, WAIT_OBJECT_0},
+            Foundation::{CloseHandle, HANDLE, WAIT_OBJECT_0},
             System::{
-                Com::{
-                    CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_INPROC_SERVER,
-                    COINIT_APARTMENTTHREADED,
-                },
+                Com::{CoInitializeEx, CoUninitialize, COINIT_APARTMENTTHREADED},
                 Threading::{GetExitCodeProcess, WaitForSingleObject, INFINITE},
             },
-            UI::Shell::{AttachmentServices, IAttachmentExecute},
+            UI::Shell::{
+                ShellExecuteExW, SEE_MASK_NOASYNC, SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW,
+            },
         },
     };
     struct Apartment;
     impl Drop for Apartment {
         fn drop(&mut self) {
-            // SAFETY: this guard is created only after COM initialization on this thread.
+            // SAFETY: this guard is created only after COM initialization.
             unsafe { CoUninitialize() };
         }
     }
@@ -55,47 +55,50 @@ pub fn execute_attachment(path: &std::path::Path, source: &str) -> Result<u32, S
     impl Drop for Process {
         fn drop(&mut self) {
             if !self.0.is_invalid() {
-                // SAFETY: Execute returned ownership of this process handle.
+                // SAFETY: ShellExecuteExW returned this process handle.
                 let _ = unsafe { CloseHandle(self.0) };
             }
         }
     }
 
-    let path: Vec<_> = path.as_os_str().encode_wide().chain(Some(0)).collect();
-    let source: Vec<_> = source.encode_utf16().chain(Some(0)).collect();
-    if path[..path.len() - 1].contains(&0) || source[..source.len() - 1].contains(&0) {
-        return Err("Chemin ou provenance Windows invalide.".into());
+    // Only the reviewed NSIS executable is eligible. No shell verbs, parameters,
+    // elevation request or alternate executable are accepted from the catalog.
+    if path.extension().and_then(|ext| ext.to_str()) != Some("exe")
+        || !path.is_file()
+        || !path.is_absolute()
+    {
+        return Err("Chemin du package NSIS invalide.".into());
     }
-    let os_error = |error: windows::core::Error| error.to_string();
-    // SAFETY: the call has a null reserved pointer. RAII balances both S_OK and S_FALSE.
+    let name: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+    if name[..name.len() - 1].contains(&0) {
+        return Err("Chemin du package NSIS invalide.".into());
+    }
+    // SAFETY: COM apartment stays active until ShellExecuteExW returns and the
+    // process has exited; its input pointers refer to live UTF-16 buffers.
     unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED) }
         .ok()
-        .map_err(os_error)?;
+        .map_err(|error| format!("Initialisation Windows : {error}"))?;
     let _apartment = Apartment;
-    // SAFETY: correct CLSID/IID, no COM aggregation, live null-terminated UTF-16 buffers.
-    let attachment: IAttachmentExecute = unsafe {
-        let attachment: IAttachmentExecute =
-            CoCreateInstance(&AttachmentServices, None, CLSCTX_INPROC_SERVER).map_err(os_error)?;
-        attachment
-            .SetLocalPath(PCWSTR(path.as_ptr()))
-            .map_err(os_error)?;
-        attachment
-            .SetSource(PCWSTR(source.as_ptr()))
-            .map_err(os_error)?;
-        attachment
+    let mut info = SHELLEXECUTEINFOW {
+        cbSize: std::mem::size_of::<SHELLEXECUTEINFOW>() as u32,
+        fMask: SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NOASYNC,
+        lpFile: PCWSTR(name.as_ptr()),
+        ..Default::default()
     };
-    let mut process = Process(HANDLE::default());
-    // SAFETY: synchronous call with a live process output slot and the default verb.
-    unsafe { attachment.Execute(HWND::default(), PCWSTR::null(), Some(&mut process.0)) }
-        .map_err(os_error)?;
+    // The standard Shell launch preserves the MOTW and invokes all native
+    // policy prompts. Never use CreateProcess or 'runas' as a fallback.
+    unsafe { ShellExecuteExW(&mut info) }
+        .map_err(|error| format!("Ouverture Windows du NSIS : {error}"))?;
+    let process = Process(info.hProcess);
     if process.0.is_invalid() {
-        return Err("Windows n’a renvoyé aucun processus d’installation.".into());
+        return Err("Windows n’a renvoyé aucun processus NSIS.".into());
     }
-    // SAFETY: the process handle remains open through both calls.
+    // SAFETY: process handle remains valid during wait and exit-code read.
     if unsafe { WaitForSingleObject(process.0, INFINITE) } != WAIT_OBJECT_0 {
         return Err("Attente du processus NSIS interrompue.".into());
     }
     let mut status = 0;
-    unsafe { GetExitCodeProcess(process.0, &mut status) }.map_err(os_error)?;
+    unsafe { GetExitCodeProcess(process.0, &mut status) }
+        .map_err(|error| format!("Code de sortie NSIS indisponible : {error}"))?;
     Ok(status)
 }
