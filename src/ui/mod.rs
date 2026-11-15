@@ -147,19 +147,6 @@ impl StudioApp {
         indices
     }
 
-    #[cfg(test)]
-    #[test]
-    fn demo_apps_are_hidden_unless_enabled() {
-        let ctx = egui::Context::default();
-        let mut app = Self::test_app(&ctx);
-        assert!(!app.visible().is_empty());
-        assert!(app.visible().iter().any(|&i| app.apps[i].fictional));
-        app.preferences.show_demo_apps = false;
-        assert!(app.visible().is_empty());
-        app.preferences.show_demo_apps = true;
-        assert_eq!(app.visible().len(), app.apps.len());
-    }
-
     fn select(&mut self, index: usize) {
         self.selected = Some(index);
         self.slide = 0;
@@ -542,6 +529,18 @@ fn release(ui: &mut egui::Ui, app: &Application) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn demo_apps_are_hidden_unless_enabled() {
+        let ctx = egui::Context::default();
+        let mut app = StudioApp::test_app(&ctx);
+        assert!(!app.visible().is_empty());
+        assert!(app.visible().iter().any(|&i| app.apps[i].fictional));
+        app.preferences.show_demo_apps = false;
+        assert!(app.visible().is_empty());
+        app.preferences.show_demo_apps = true;
+        assert_eq!(app.visible().len(), app.apps.len());
+    }
+
     use super::*;
     fn frame(
         app: &mut StudioApp,
