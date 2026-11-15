@@ -51,7 +51,10 @@ impl StudioApp {
                         (12.0, 8.0, 10.0, 14.0, Color32::from_rgb(127, 95, 229)),
                     ] {
                         ui.painter().rect_filled(
-                            egui::Rect::from_min_size(mark.min + egui::vec2(x, y), egui::vec2(w, h)),
+                            egui::Rect::from_min_size(
+                                mark.min + egui::vec2(x, y),
+                                egui::vec2(w, h),
+                            ),
                             2.0,
                             color,
                         );
@@ -132,7 +135,10 @@ impl StudioApp {
                     .show(ui, |ui| {
                         let indices = self.visible();
                         if indices.is_empty() {
-                            let has_visible_apps = self.apps.iter().any(|a| !a.fictional || self.preferences.show_demo_apps);
+                            let has_visible_apps = self
+                                .apps
+                                .iter()
+                                .any(|a| !a.fictional || self.preferences.show_demo_apps);
                             ui.heading(if self.apps.is_empty() {
                                 "Catalogue indisponible"
                             } else if !has_visible_apps {
@@ -246,7 +252,11 @@ impl StudioApp {
     fn update_count(&self) -> usize {
         self.apps
             .iter()
-            .filter(|a| self.preferences.show_demo_apps && a.fictional && a.state() == AppState::UpdateAvailable)
+            .filter(|a| {
+                self.preferences.show_demo_apps
+                    && a.fictional
+                    && a.state() == AppState::UpdateAvailable
+            })
             .count()
     }
     fn update_all(&mut self, ui: &mut egui::Ui) {
