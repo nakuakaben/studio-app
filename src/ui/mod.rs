@@ -117,6 +117,7 @@ impl StudioApp {
     fn test_app(ctx: &egui::Context) -> Self {
         let mut app = Self::empty(ctx);
         app.preferences = Preferences::default();
+        app.preferences.show_demo_apps = true;
         app.preferences_path = None;
         app.sort = Sort::Name;
         app.apps = crate::catalog::demonstration();
@@ -131,6 +132,7 @@ impl StudioApp {
             .apps
             .iter()
             .enumerate()
+            .filter(|(_, a)| !a.fictional || self.preferences.show_demo_apps)
             .filter(|(_, a)| {
                 format!("{} {}", a.name, a.category)
                     .to_lowercase()
@@ -143,6 +145,19 @@ impl StudioApp {
             Sort::Category => self.apps[i].category.as_str(),
         });
         indices
+    }
+
+    #[cfg(test)]
+    #[test]
+    fn demo_apps_are_hidden_unless_enabled() {
+        let ctx = egui::Context::default();
+        let mut app = Self::test_app(&ctx);
+        assert!(!app.visible().is_empty());
+        assert!(app.visible().iter().any(|&i| app.apps[i].fictional));
+        app.preferences.show_demo_apps = false;
+        assert!(app.visible().is_empty());
+        app.preferences.show_demo_apps = true;
+        assert_eq!(app.visible().len(), app.apps.len());
     }
 
     fn select(&mut self, index: usize) {

@@ -41,6 +41,8 @@ pub struct Preferences {
     pub appearance: Appearance,
     pub language: Language,
     pub sort: Sort,
+    #[serde(default)]
+    pub show_demo_apps: bool,
     pub community_website: Option<String>,
     pub community_discord: Option<String>,
 }
@@ -52,6 +54,7 @@ impl Default for Preferences {
             appearance: Appearance::System,
             language: Language::Auto,
             sort: Sort::Name,
+            show_demo_apps: false,
             community_website: None,
             community_discord: None,
         }
@@ -126,12 +129,26 @@ mod tests {
         };
         p.save(&path).unwrap();
         assert_eq!(Preferences::load(&path).unwrap().view, View::List);
+        assert!(!Preferences::load(&path).unwrap().show_demo_apps);
         p.community_website = Some("javascript:alert(1)".into());
         assert!(p.save(&path).is_err());
         assert_eq!(
             Preferences::load(&path).unwrap().appearance,
             Appearance::Light
         );
+    }
+    #[test]
+    fn older_preferences_default_demo_visibility_off() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("ui.json");
+        let mut legacy = serde_json::to_value(Preferences::default()).unwrap();
+        legacy.as_object_mut().unwrap().remove("show_demo_apps");
+        std::fs::write(&path, serde_json::to_vec(&legacy).unwrap()).unwrap();
+        let mut loaded = Preferences::load(&path).unwrap();
+        assert!(!loaded.show_demo_apps);
+        loaded.show_demo_apps = true;
+        loaded.save(&path).unwrap();
+        assert!(Preferences::load(&path).unwrap().show_demo_apps);
     }
     #[test]
     fn invalid_schema_unknown_fields_and_large_files_are_rejected() {
