@@ -6,6 +6,7 @@ pub mod download;
 pub mod fixture;
 pub mod model;
 pub mod personal;
+mod portable_manifest;
 mod personal_native;
 pub mod platform;
 pub mod worker;
