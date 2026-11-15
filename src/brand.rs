@@ -42,6 +42,6 @@ mod tests {
         let icon = super::icon_data();
         assert_eq!(icon.rgba.len(), (icon.width * icon.height * 4) as usize);
         assert_eq!(&icon.rgba[..4], &[0, 0, 0, 0]);
-        assert!(icon.rgba.chunks_exact(4).any(|p| p == [162, 104, 232, 255]));
+        assert!(icon.rgba.as_chunks::<4>().0.contains(&[162, 104, 232, 255]));
     }
 }
