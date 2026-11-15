@@ -7,6 +7,9 @@ on:
       - '.github/workflows/studio-app-beta.yml'
       - 'scripts/package-beta-macos.sh'
       - 'src/main.rs'
+      - 'src/brand.rs'
+      - 'assets/brand/studio-app.svg'
+      - 'scripts/generate-brand-icons.py'
       - 'src/catalog/loader.rs'
       - 'catalog/config.json'
       - 'catalog/catalog.json'
@@ -37,6 +40,7 @@ jobs:
           trap 'hdiutil detach "$mount"' EXIT
           app="$mount/Studio App.app"
           codesign --verify --strict "$app"
+          test -s "$app/Contents/Resources/studio-app.icns"
           test -s "$app/Contents/catalog/hyper-media-puller.json"
           env -u STUDIO_APP_CONFIG PATH=/usr/bin:/bin STUDIO_APP_CACHE_DIR="$RUNNER_TEMP/studio-test-cache" \
             "$app/Contents/MacOS/studio-app" --check-catalog

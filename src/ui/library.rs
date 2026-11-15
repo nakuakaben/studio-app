@@ -44,14 +44,19 @@ impl StudioApp {
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     let (mark, _) = ui.allocate_exact_size(egui::vec2(22.0, 22.0), Sense::hover());
-                    for (x, y) in [(0.0, 0.0), (12.0, 0.0), (0.0, 12.0)] {
+                    // Studio App: three distinct modules, consistent with assets/brand/studio-app.svg.
+                    for (x, y, w, h, color) in [
+                        (0.0, 0.0, 22.0, 5.0, Color32::from_rgb(162, 104, 232)),
+                        (0.0, 8.0, 9.0, 14.0, Color32::from_rgb(52, 144, 242)),
+                        (12.0, 8.0, 10.0, 14.0, Color32::from_rgb(127, 95, 229)),
+                    ] {
                         ui.painter().rect_filled(
                             egui::Rect::from_min_size(
                                 mark.min + egui::vec2(x, y),
-                                egui::vec2(9.0, 9.0),
+                                egui::vec2(w, h),
                             ),
-                            0,
-                            ui.visuals().text_color(),
+                            2.0,
+                            color,
                         );
                     }
                     ui.label(RichText::new("STUDIO APP").strong().size(22.0));
@@ -130,13 +135,21 @@ impl StudioApp {
                     .show(ui, |ui| {
                         let indices = self.visible();
                         if indices.is_empty() {
+                            let has_visible_apps = self
+                                .apps
+                                .iter()
+                                .any(|a| !a.fictional || self.preferences.show_demo_apps);
                             ui.heading(if self.apps.is_empty() {
                                 "Catalogue indisponible"
+                            } else if !has_visible_apps {
+                                "Aucune application réelle disponible"
                             } else {
                                 "Aucune application trouvée"
                             });
                             if self.apps.is_empty() {
                                 ui.label("Actualisez le catalogue ou vérifiez sa configuration.");
+                            } else if !has_visible_apps {
+                                ui.label("Les démonstrations sont masquées dans les réglages.");
                             } else if ui.button("EFFACER LA RECHERCHE").clicked() {
                                 self.query.clear();
                             }
@@ -239,7 +252,11 @@ impl StudioApp {
     fn update_count(&self) -> usize {
         self.apps
             .iter()
-            .filter(|a| a.fictional && a.state() == AppState::UpdateAvailable)
+            .filter(|a| {
+                self.preferences.show_demo_apps
+                    && a.fictional
+                    && a.state() == AppState::UpdateAvailable
+            })
             .count()
     }
     fn update_all(&mut self, ui: &mut egui::Ui) {

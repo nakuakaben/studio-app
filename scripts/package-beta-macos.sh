@@ -10,7 +10,9 @@ staging=$(mktemp -d)
 trap 'rm -rf "$staging"' EXIT
 
 app="$staging/Studio App.app"
-mkdir -p "$app/Contents/MacOS" "$app/Contents/catalog"
+mkdir -p "$app/Contents/MacOS" "$app/Contents/catalog" "$app/Contents/Resources"
+python3 "$project_dir/scripts/generate-brand-icons.py" "$staging/StudioApp.iconset"
+iconutil -c icns -o "$app/Contents/Resources/studio-app.icns" "$staging/StudioApp.iconset"
 install -m 755 "$binary" "$app/Contents/MacOS/studio-app"
 for file in config.json catalog.json hyper-media-puller.json; do
     install -m 644 "$project_dir/catalog/$file" "$app/Contents/catalog/$file"
@@ -27,6 +29,7 @@ with open(sys.argv[2], "wb") as info:
     plistlib.dump({
         "CFBundleDisplayName": "Studio App",
         "CFBundleExecutable": "studio-app",
+        "CFBundleIconFile": "studio-app.icns",
         "CFBundleIdentifier": "app.studioapp.launcher",
         "CFBundleName": "Studio App",
         "CFBundlePackageType": "APPL",

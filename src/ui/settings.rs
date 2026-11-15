@@ -107,6 +107,19 @@ impl StudioApp {
                 });
             ui.small("Français disponible. Automatique utilise le français par défaut.");
         });
+        section(ui, "BIBLIOTHÈQUE", |ui| {
+            if ui
+                .checkbox(
+                    &mut self.preferences.show_demo_apps,
+                    "Afficher les applications de démonstration",
+                )
+                .changed()
+            {
+                self.selected = None;
+                self.persist_preferences();
+            }
+            ui.small("Désactivé par défaut. Les applications fictives restent disponibles pour les essais.");
+        });
         section(ui, "MISES À JOUR", |ui| {
             ui.add_enabled_ui(false, |ui| {
                 ui.horizontal_wrapped(|ui| {
