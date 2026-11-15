@@ -70,7 +70,9 @@ fn walk(root: &Path, current: &Path, names: &mut HashSet<String>) -> Result<()> 
         let path = entry.path();
         let meta = fs::symlink_metadata(&path)?;
         if meta.file_type().is_symlink() || (!meta.is_dir() && !meta.is_file()) {
-            return Err(Failure::permanent("Lien ou fichier spécial interdit dans le portable."));
+            return Err(Failure::permanent(
+                "Lien ou fichier spécial interdit dans le portable.",
+            ));
         }
         let relative = path
             .strip_prefix(root)
@@ -113,7 +115,9 @@ pub(crate) fn validate(
     let manifest_file = root.join(MANIFEST);
     let meta = fs::symlink_metadata(&manifest_file)?;
     if !meta.is_file() || meta.file_type().is_symlink() || meta.len() > MAX_MANIFEST {
-        return Err(Failure::permanent("Manifeste portable invalide ou excessif."));
+        return Err(Failure::permanent(
+            "Manifeste portable invalide ou excessif.",
+        ));
     }
     let manifest: Manifest = serde_json::from_reader(File::open(&manifest_file)?)?;
     if manifest.schema_version != 1
@@ -129,13 +133,17 @@ pub(crate) fn validate(
         || manifest.files.is_empty()
         || manifest.files.len() > archive::MAX_ENTRIES
     {
-        return Err(Failure::permanent("Identité ou version du portable non approuvées."));
+        return Err(Failure::permanent(
+            "Identité ou version du portable non approuvées.",
+        ));
     }
     archive::safe_entry(&format!("HMP/{}", manifest.executable), "HMP")?;
     let mut observed = HashSet::new();
     walk(root, root, &mut observed)?;
     if !observed.remove(MANIFEST) || observed.len() != manifest.files.len() {
-        return Err(Failure::permanent("Arborescence portable différente du manifeste."));
+        return Err(Failure::permanent(
+            "Arborescence portable différente du manifeste.",
+        ));
     }
     let mut total = 0u64;
     for file in &manifest.files {
@@ -146,7 +154,9 @@ pub(crate) fn validate(
             || file.size > archive::MAX_EXPANDED
             || super::approval::unhex(&file.sha256, 32).is_err()
         {
-            return Err(Failure::permanent("Fichier portable inconnu ou non vérifiable."));
+            return Err(Failure::permanent(
+                "Fichier portable inconnu ou non vérifiable.",
+            ));
         }
         total = total
             .checked_add(file.size)
@@ -157,11 +167,15 @@ pub(crate) fn validate(
         archive::safe_entry(&format!("HMP/{}", file.path), "HMP")?;
         let actual = digest(&root.join(&file.path), file.size, cancel)?;
         if !actual.eq_ignore_ascii_case(&file.sha256) {
-            return Err(Failure::permanent("Empreinte de fichier portable incorrecte."));
+            return Err(Failure::permanent(
+                "Empreinte de fichier portable incorrecte.",
+            ));
         }
     }
     if !observed.is_empty() || !root.join(executable).is_file() {
-        return Err(Failure::permanent("Fichier exécutable absent ou fichier supplémentaire."));
+        return Err(Failure::permanent(
+            "Fichier exécutable absent ou fichier supplémentaire.",
+        ));
     }
     Ok(())
 }
@@ -169,8 +183,8 @@ pub(crate) fn validate(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write;
     use serde_json::json;
+    use std::io::Write;
 
     fn stage() -> tempfile::TempDir {
         let dir = tempfile::tempdir().unwrap();
@@ -188,11 +202,18 @@ mod tests {
             "files": [{"path":"hmp-v2-preview.exe","size":7,"sha256":hash}]
         });
         let mut f = File::create(dir.path().join(MANIFEST)).unwrap();
-        f.write_all(serde_json::to_string(&manifest).unwrap().as_bytes()).unwrap();
+        f.write_all(serde_json::to_string(&manifest).unwrap().as_bytes())
+            .unwrap();
         dir
     }
     fn check(dir: &tempfile::TempDir) -> Result<()> {
-        validate(dir.path(), "hyper-media-puller", "0.1.0-beta.1", "hmp-v2-preview.exe", &Cancellation::default())
+        validate(
+            dir.path(),
+            "hyper-media-puller",
+            "0.1.0-beta.1",
+            "hmp-v2-preview.exe",
+            &Cancellation::default(),
+        )
     }
     #[test]
     fn exact_manifest_is_accepted_but_not_a_signature() {
@@ -214,7 +235,21 @@ mod tests {
     #[test]
     fn rejects_unapproved_version_and_identity() {
         let d = stage();
-        assert!(validate(d.path(), "another-app", "0.1.0-beta.1", "hmp-v2-preview.exe", &Cancellation::default()).is_err());
-        assert!(validate(d.path(), "hyper-media-puller", "0.1.0-beta.2", "hmp-v2-preview.exe", &Cancellation::default()).is_err());
+        assert!(validate(
+            d.path(),
+            "another-app",
+            "0.1.0-beta.1",
+            "hmp-v2-preview.exe",
+            &Cancellation::default()
+        )
+        .is_err());
+        assert!(validate(
+            d.path(),
+            "hyper-media-puller",
+            "0.1.0-beta.2",
+            "hmp-v2-preview.exe",
+            &Cancellation::default()
+        )
+        .is_err());
     }
 }
