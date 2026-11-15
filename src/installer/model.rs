@@ -103,19 +103,9 @@ impl Cancellation {
 pub fn platform() -> Option<(Os, Architecture)> {
     #[cfg(windows)]
     {
-        use windows_sys::Win32::System::{
-            SystemInformation::{IMAGE_FILE_MACHINE_AMD64, IMAGE_FILE_MACHINE_ARM64},
-            Threading::{GetCurrentProcess, IsWow64Process2},
-        };
-        let (mut process, mut host) = (0, 0);
-        // SAFETY: pseudohandle for the current process and two valid writable USHORTs.
-        if unsafe { IsWow64Process2(GetCurrentProcess(), &mut process, &mut host) } == 0 {
-            return None;
-        }
-        let arch = match host {
-            IMAGE_FILE_MACHINE_AMD64 => Architecture::X86_64,
-            IMAGE_FILE_MACHINE_ARM64 => Architecture::Aarch64,
-            _ => return None,
+        let arch = match studio_windows_host::architecture()? {
+            studio_windows_host::Architecture::X86_64 => Architecture::X86_64,
+            studio_windows_host::Architecture::Aarch64 => Architecture::Aarch64,
         };
         Some((Os::Windows, arch))
     }

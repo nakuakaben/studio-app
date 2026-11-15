@@ -30,7 +30,7 @@ time = { version = "0.3", features = ["parsing"] }
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"
-windows-sys = { version = "0.61", features = ["Win32_System_SystemInformation", "Win32_System_Threading"] }
+studio-windows-host = { path = "platform/windows-host" }
 
 [profile.release]
 strip = true

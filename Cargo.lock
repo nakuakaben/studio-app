@@ -2796,12 +2796,19 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "studio-windows-host",
  "tempfile",
  "time",
  "url",
- "windows-sys 0.61.2",
  "winreg",
  "zip",
+]
+
+[[package]]
+name = "studio-windows-host"
+version = "0.1.0"
+dependencies = [
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

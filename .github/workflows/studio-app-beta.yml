@@ -14,6 +14,7 @@ on:
       - 'src/catalog/manual.rs'
       - 'src/installer/**'
       - 'src/ui/installer_state.rs'
+      - 'platform/windows-host/**'
       - 'catalog/config.json'
       - 'catalog/catalog.json'
       - 'catalog/hyper-media-puller.json'
