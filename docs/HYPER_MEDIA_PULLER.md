@@ -75,6 +75,8 @@ avant la copie finale ou avant l’ouverture du NSIS.
   bundle `HMP.app`, son identité et sa signature de code, conserve ou ajoute
   le marquage de quarantaine et pose le bundle sans remplacement sous
   `~/Applications`. La signature ad hoc est admise uniquement dans ce profil.
+  Une édition interne reconnue dans un autre dossier peut coexister. Tout
+  bundle déjà présent à la destination personnelle bloque l’installation.
   La redétection annonce la version déclarée par le bundle. Pour cet asset,
   `0.1.0` laisse la révision bêta indéterminée. **Ouvrir** délègue à
   LaunchServices. En cas de refus, consulter la décision de macOS et, si

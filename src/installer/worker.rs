@@ -65,6 +65,7 @@ pub fn spawn(
             personal_native::preflight(&plan, &confirmed.destination)?;
             let package = transfer(&plan, &http, &cancellation, &mut emit)?;
             if matches!(plan.recipe, Recipe::PersonalHmpNsis) {
+                native::windows::pe(package.path()).map_err(Failure::permanent)?;
                 emit(Progress::phase(Phase::AwaitingConsent));
                 wait_for_consent(&user_confirmation, &cancellation)?;
             }

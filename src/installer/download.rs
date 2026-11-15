@@ -201,6 +201,21 @@ impl VerifiedDownload {
     pub(crate) fn path(&self) -> &std::path::Path {
         self.file.path()
     }
+
+    #[cfg(windows)]
+    pub(super) fn recheck(&self, plan: &Plan, cancel: &Cancellation) -> Result<()> {
+        let file = std::fs::File::open(self.path())?;
+        if file.metadata()?.len() != plan.package.size_bytes {
+            return Err(Failure::permanent(
+                "La taille du fichier téléchargé a changé.",
+            ));
+        }
+        verify_hash(
+            file.take(plan.package.size_bytes),
+            &plan.package.sha256,
+            cancel,
+        )
+    }
 }
 fn strong(etag: Option<String>) -> Option<String> {
     etag.filter(|s| {
@@ -328,18 +343,23 @@ pub fn download(
     file.flush()?;
     file.as_file().sync_all()?;
     file.seek(SeekFrom::Start(0))?;
+    verify_hash(file.as_file_mut(), &plan.package.sha256, cancel)?;
+    Ok(VerifiedDownload { file })
+}
+
+fn verify_hash(mut input: impl Read, expected: &str, cancel: &Cancellation) -> Result<()> {
     let mut hash = Sha256::new();
     let mut buffer = [0; 64 * 1024];
     loop {
         cancel.check()?;
-        let count = file.read(&mut buffer)?;
+        let count = input.read(&mut buffer)?;
         if count == 0 {
             break;
         }
         hash.update(&buffer[..count]);
     }
-    if !approval::hex(&hash.finalize()).eq_ignore_ascii_case(&plan.package.sha256) {
+    if !approval::hex(&hash.finalize()).eq_ignore_ascii_case(expected) {
         return Err(Failure::permanent("Empreinte SHA-256 incorrecte. Package rejeté et supprimé ; aucune installation exécutée."));
     }
-    Ok(VerifiedDownload { file })
+    Ok(())
 }

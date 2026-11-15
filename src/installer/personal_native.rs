@@ -36,6 +36,10 @@ pub(super) fn preflight(plan: &Plan, destination: &Path) -> Result<()> {
         .detection
         .as_ref()
         .ok_or_else(|| Failure::permanent("Identité HMP absente."))?;
+    #[cfg(target_os = "macos")]
+    if let Some(rule) = &rules.macos {
+        return check_mac_existing(rule, &native::macos::roots());
+    }
     let report = native::detect(rules);
     if !report.installations.is_empty() || !report.errors.is_empty() {
         return Err(Failure::permanent("Une installation HMP existe ou sa présence n’a pas pu être exclue. Aucun remplacement autorisé."));
@@ -46,6 +50,33 @@ pub(super) fn preflight(plan: &Plan, destination: &Path) -> Result<()> {
             return Err(Failure::permanent(
                 "Une clé d’installation HMP existe déjà. Aucun remplacement autorisé.",
             ));
+        }
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn check_mac_existing(rule: &native::model::MacRule, roots: &[PathBuf]) -> Result<()> {
+    let internal = native::model::MacRule {
+        bundle_id: "fr.tktprod.hyperdeck-media-puller.v2.internal".into(),
+        bundle_paths: rule.bundle_paths.clone(),
+    };
+    for root in roots {
+        for relative in &rule.bundle_paths {
+            let candidate = root.join(relative);
+            match fs::symlink_metadata(&candidate) {
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                Ok(meta)
+                    if meta.is_dir() && native::macos::inspect(root, relative, &internal).is_ok() =>
+                {
+                    // The known internal edition in a different directory is not public HMP.
+                    // The exact destination has already been checked by absent().
+                }
+                _ => return Err(Failure::permanent(format!(
+                    "Un bundle HMP public ou non identifié existe dans {}. Aucun remplacement autorisé.",
+                    candidate.display()
+                ))),
+            }
         }
     }
     Ok(())
@@ -102,7 +133,10 @@ pub(super) fn install(
     }
     #[cfg(windows)]
     if matches!(plan.recipe, Recipe::PersonalHmpNsis) {
-        return install_windows(plan, package.path(), emit, before_install);
+        return install_windows(plan, package.path(), emit, || {
+            package.recheck(plan, cancel)?;
+            before_install()
+        });
     }
     let _ = (package, emit, before_install);
     Err(Failure::permanent("Recette HMP incompatible."))
