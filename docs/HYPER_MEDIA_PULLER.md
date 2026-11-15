@@ -18,54 +18,45 @@ constituent aucune autorisation. Le profil de production reste distinct et inact
 | macOS Apple Silicon | `HMP-V2-0.1.0-beta.1-macos-arm64.dmg` | `19626af397aa54318b2adc6b03287fc224f9790e6b18eb54233a9d3514ab6097` |
 | Windows x64 | `HMP-V2-0.1.0-beta.1-windows-x64-setup.exe` | `d35dcb98366c1bd4b0f44ef1e250159175dbee2e388c215094a173bde1a2255e` |
 
-### Générer sa politique locale
+### Parcours standard — sans installation d'outils
 
-Depuis le dépôt source, sur macOS par exemple, créer un dossier privé en dehors
-du dépôt. Choisir un fichier de sortie neuf et vérifier les empreintes des
-artefacts avant de signer. La durée maximale de génération est de 30 jours.
+Installer le DMG Studio App (macOS Apple Silicon) ou extraire son ZIP (Windows x64),
+puis lancer Studio App normalement, depuis le Finder ou l'Explorateur.
+**Aucun Rust, Cargo, Git, script, Terminal ou variable d'environnement n'est
+nécessaire** pour installer HMP depuis le launcher.
+
+Studio App contient une autorisation limitée aux deux artefacts exacts de
+HMP `v0.1.0-beta.1` (URL officielle, nom, taille, SHA-256 et recette).
+Un contrôle du fichier téléchargé est toujours effectué. Une clé Ed25519
+éphémère est créée uniquement en mémoire pour la politique de consentement
+personnelle de la session. **Elle ne certifie pas l'éditeur HMP** et ne
+permet pas d'autoriser une autre version ni un package arbitraire.
+Aucune clé privée n'est embarquée dans le binaire ou écrite sur le disque.
+
+L'utilisateur doit cocher explicitement son accord dans le dialogue pour
+chaque installation. Cette autorisation ne vaut pas signature Apple Developer
+ID ni Authenticode. Gatekeeper, SmartScreen et les contrôles de l'OS restent
+actifs. En cas de refus, consulter les indications officielles du système.
+
+### Provisionnement avancé (développeurs uniquement)
+
+L'ancienne politique externe reste possible pour les essais contrôlés via
+`STUDIO_APP_PERSONAL_INSTALLER_POLICY`. Elle est **facultative**, et n'est
+pas nécessaire au parcours utilisateur. Les commandes de génération restent
+réservées au développement :
 
 ```sh
-umask 077
-mkdir -p "$HOME/.studio-hmp-personal"
-studio_hmp_dir="$HOME/.studio-hmp-personal"
-studio_hmp_expires=$(($(date +%s) + 7 * 86400))
-cargo run --locked --bin studio-catalog -- personal-keygen "$studio_hmp_dir/hmp.key"
-cargo run --locked --bin studio-catalog -- personal-hmp "$studio_hmp_dir/hmp.key" "$studio_hmp_expires" "$studio_hmp_dir/policy.json"
-STUDIO_APP_PERSONAL_INSTALLER_POLICY="$studio_hmp_dir/policy.json" cargo run --locked --bin studio-app
+cargo run --locked --bin studio-catalog -- personal-keygen /chemin/prive/hmp.key
+cargo run --locked --bin studio-catalog -- personal-hmp /chemin/prive/hmp.key EXPIRATION_UNIX /chemin/prive/policy.json
 ```
 
-Pour lancer l’application packagée depuis le même shell, appeler son exécutable
-`Studio App.app/Contents/MacOS/studio-app` par son chemin absolu avec la même
-variable. L’ouverture habituelle depuis le Finder continue d’utiliser le profil
-public.
-
-Sous Windows, l’équivalent PowerShell depuis le dépôt est le suivant.
-
-```pwsh
-$studioHmpDir = Join-Path $env:USERPROFILE '.studio-hmp-personal'
-New-Item -ItemType Directory -Path $studioHmpDir -Force | Out-Null
-$studioHmpKey = Join-Path $studioHmpDir 'hmp.key'
-$studioHmpPolicy = Join-Path $studioHmpDir 'policy.json'
-$studioHmpExpires = [DateTimeOffset]::UtcNow.AddDays(7).ToUnixTimeSeconds()
-cargo run --locked --bin studio-catalog -- personal-keygen $studioHmpKey
-cargo run --locked --bin studio-catalog -- personal-hmp $studioHmpKey $studioHmpExpires $studioHmpPolicy
-$env:STUDIO_APP_PERSONAL_INSTALLER_POLICY = $studioHmpPolicy
-cargo run --locked --bin studio-app
-```
-
-Une fois la politique créée, il est aussi possible de lancer `studio-app.exe`
-extrait du ZIP depuis ce PowerShell. Conserver la clé privée hors du dépôt et
-hors du dossier distribué. Le JSON contient la clé **publique** et les
-approbations signées. La variable exige un chemin absolu et doit être définie
-pour le seul processus d’essai. Retirer la variable ou déplacer la politique
-empêche les nouveaux transferts et les nouvelles poses. Les commandes refusent
-d’écraser un fichier auparavant créé. Pour renouveler la politique, utiliser un
-nouveau chemin de sortie et le sélectionner explicitement.
+Ne jamais publier la clé privée. Une variable dédiée à une politique externe
+s'applique uniquement au processus explicitement lancé par l'opérateur.
 
 ### Installer et vérifier
 
-Ouvrir **Installer HMP**, vérifier la version, la cible, le fichier et la clé
-publique locale, cocher l’accord et cliquer **Télécharger**. Studio App vérifie
+Ouvrir **Installer HMP**, vérifier la version, la cible et le fichier épinglé,
+cocher l’accord et cliquer **Télécharger**. Studio App vérifie
 l’approbation avant le téléchargement HTTPS et de nouveau avant la pose ou
 l’exécution. Le transfert vérifie la taille et le SHA-256. Il n’accepte qu’un
 saut vers le fichier précis du CDN officiel GitHub. L’annulation est possible

@@ -141,7 +141,7 @@ impl StudioApp {
                             installation_summary(ui, app, &dialog.authorization);
                             if matches!(&dialog.authorization, Authorization::Ready(c) if c.personal)
                                 && !busy && !dialog.completed {
-                                ui.checkbox(&mut dialog.acknowledged, "J’approuve l’installation personnelle de ce package HMP.");
+                                ui.checkbox(&mut dialog.acknowledged, "J’autorise l’installation personnelle de HMP v0.1.0-beta.1, non certifié par Apple ou Microsoft.");
                             }
                             if let Operation::Native(progress) = &app.operation {
                                 ui.label(mono(progress.phase.label()).color(blue));
@@ -340,14 +340,15 @@ fn installation_summary(ui: &mut egui::Ui, app: &Application, authorization: &Au
     match authorization {
         Authorization::Pending(_) => {
             ui.spinner();
-            ui.label("Vérification de l’approbation locale…");
+            ui.label("Vérification de HMP et des empreintes approuvées…");
         }
         Authorization::Ready(confirmation) => {
             if confirmation.personal {
-                ui.label(mono("INSTALLATION PERSONNELLE APPROUVÉE"));
-                ui.small("Cette approbation Ed25519 locale est distincte des contrôles de sécurité de macOS ou Windows.");
+                ui.label(mono("INSTALLATION PERSONNELLE — ACCORD REQUIS"));
+                ui.small("HMP est épinglé dans Studio App (URL, taille, SHA-256). La politique Ed25519 de session ne certifie pas l’éditeur. macOS/Windows peuvent refuser l’ouverture.");
                 if let Some(key) = &confirmation.key {
-                    ui.label("Clé publique locale").on_hover_text(key);
+                    ui.label("Clé publique temporaire de cette session")
+                        .on_hover_text(key);
                 }
             }
             ui.label(mono("DOSSIER D’INSTALLATION APPROUVÉ"));
