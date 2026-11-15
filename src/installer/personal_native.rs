@@ -319,8 +319,7 @@ fn install_windows(
     fs::copy(package, &installer)?;
     let bytes = fs::read(&installer)?;
     if bytes.len() as u64 != plan.package.size_bytes
-        || !super::approval::hex(&Sha256::digest(&bytes))
-            .eq_ignore_ascii_case(&plan.package.sha256)
+        || !super::approval::hex(&Sha256::digest(&bytes)).eq_ignore_ascii_case(&plan.package.sha256)
     {
         return Err(Failure::permanent(
             "La copie NSIS ne correspond pas au fichier HMP approuvé.",
