@@ -6,9 +6,13 @@ fn inspect(args: &[String]) -> Result<bool, Box<dyn std::error::Error>> {
         loader::{self, HttpsTransport, Settings},
     };
     match args {
-        [flag, path] if flag == "--check-catalog" => {
-            let (_, cache) = loader::default_paths()?;
-            let settings = Settings::from_path(std::path::Path::new(path), &cache)?;
+        [flag] | [flag, _] if flag == "--check-catalog" => {
+            let (default_config, cache) = loader::default_paths()?;
+            let config = args
+                .get(1)
+                .map(std::path::Path::new)
+                .unwrap_or(&default_config);
+            let settings = Settings::from_path(config, &cache)?;
             let loaded = loader::load(&settings, &HttpsTransport)?;
             println!(
                 "{:?} · {} · {} application(s)",
@@ -37,7 +41,8 @@ fn inspect(args: &[String]) -> Result<bool, Box<dyn std::error::Error>> {
         }
         [] => Ok(false),
         _ => Err(
-            "Usage : studio-app [--check-catalog config.json | --discover owner/repository]".into(),
+            "Usage : studio-app [--check-catalog [config.json] | --discover owner/repository]"
+                .into(),
         ),
     }
 }
