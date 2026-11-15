@@ -49,7 +49,7 @@ def png(size):
             row.extend(pixel((x + 0.5) * 256 / size, (y + 0.5) * 256 / size))
         rows.append(bytes(row))
     return (
-        b"\\x89PNG\\r\\n\\x1a\\n"
+        b"\x89PNG\r\n\x1a\n"
         + chunk(b"IHDR", struct.pack(">IIBBBBB", size, size, 8, 6, 0, 0, 0))
         + chunk(b"IDAT", zlib.compress(b"".join(rows), 9))
         + chunk(b"IEND", b"")
