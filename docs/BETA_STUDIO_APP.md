@@ -22,7 +22,8 @@ et valider la notarisation macOS sur les fichiers à publier.
   sur le SHA à qualifier. Extraire les enveloppes ZIP de GitHub Actions et
   vérifier les paquets avec leur fichier `SHA256SUMS.txt` respectif.
 - Le DMG contient `Studio App.app` avec un exécutable Mach-O arm64. Le ZIP
-  Windows contient `Studio App/studio-app.exe`, un exécutable PE x64. Chaque
+  Windows contient `Studio App/studio-app.exe`, un exécutable PE x64 dont
+  le runtime Visual C++ est lié statiquement. Chaque
   paquet contient les fichiers `config.json`, `catalog.json` et
   `hyper-media-puller.json`. La fiche HMP est résolue à partir de cette
   configuration et des métadonnées publiques GitHub. Les installateurs de

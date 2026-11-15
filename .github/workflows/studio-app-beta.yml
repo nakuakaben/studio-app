@@ -55,6 +55,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Build and package
         shell: pwsh
+        env:
+          CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS: -C target-feature=+crt-static
         run: |
           cargo build --locked --release --bin studio-app --target x86_64-pc-windows-msvc
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
