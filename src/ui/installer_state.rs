@@ -145,8 +145,14 @@ impl StudioApp {
                             }
                             if let Operation::Native(progress) = &app.operation {
                                 ui.label(mono(progress.phase.label()).color(blue));
+                                if progress.phase == installer::Phase::Installing
+                                    && cfg!(windows)
+                                    && app.id == HMP_ID
+                                {
+                                    ui.label("L’installation se déroule dans la fenêtre NSIS de Windows. Terminez-la pour revenir ici. Si elle est cachée, utilisez Alt + Tab.");
+                                }
                                 if awaiting {
-                                    ui.label("L’installateur NSIS va s’ouvrir avec les contrôles de Windows. Choisissez un dossier vide.");
+                                    ui.label("Windows va ouvrir l’installateur HMP. Après SmartScreen, terminez l’assistant NSIS dans sa fenêtre (Alt + Tab s’il est derrière Studio App).");
                                 } else if progress.total > 0 {
                                     let counter = format!(
                                         "{:.1} / {:.1} Mo",

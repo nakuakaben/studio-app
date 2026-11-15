@@ -83,6 +83,9 @@ pub fn execute_attachment(path: &std::path::Path, _source: &str) -> Result<u32, 
         cbSize: std::mem::size_of::<SHELLEXECUTEINFOW>() as u32,
         fMask: SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NOASYNC,
         lpFile: PCWSTR(name.as_ptr()),
+        // SW_SHOWNORMAL = 1. SHELLEXECUTEINFOW::default() otherwise gives
+        // nShow=0 (SW_HIDE), silently hiding the interactive NSIS wizard.
+        nShow: 1,
         ..Default::default()
     };
     // The standard Shell launch preserves the MOTW and invokes all native
