@@ -1,0 +1,80 @@
+name: Studio App beta packages
+
+on:
+  pull_request:
+    branches: [dev, main]
+    paths:
+      - '.github/workflows/studio-app-beta.yml'
+      - 'scripts/package-beta-macos.sh'
+      - 'catalog/config.json'
+      - 'catalog/catalog.json'
+      - 'catalog/hyper-media-puller.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    name: Beta package (macOS arm64)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build and package
+        run: |
+          test "$(uname -m)" = arm64
+          cargo build --locked --release --bin studio-app
+          sh scripts/package-beta-macos.sh target/release/studio-app "$RUNNER_TEMP/studio-beta"
+      - name: Smoke test the mounted bundle
+        working-directory: ${{ runner.temp }}
+        run: |
+          mount=$(mktemp -d)
+          hdiutil attach -readonly -nobrowse -mountpoint "$mount" studio-beta/Studio-App-macos-arm64.dmg
+          trap 'hdiutil detach "$mount"' EXIT
+          app="$mount/Studio App.app"
+          codesign --verify --strict "$app"
+          STUDIO_APP_CACHE_DIR="$RUNNER_TEMP/studio-test-cache" \
+            "$app/Contents/MacOS/studio-app" --check-catalog "$app/Contents/catalog/config.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Studio-App-macos-arm64
+          path: ${{ runner.temp }}/studio-beta/*
+          if-no-files-found: error
+
+  windows:
+    name: Beta package (Windows x64)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build and package
+        shell: pwsh
+        run: |
+          cargo build --locked --release --bin studio-app --target x86_64-pc-windows-msvc
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $stage = Join-Path $env:RUNNER_TEMP 'Studio App'
+          $output = Join-Path $env:RUNNER_TEMP 'studio-beta'
+          New-Item -ItemType Directory -Path "$stage/catalog", $output -Force | Out-Null
+          Copy-Item target/x86_64-pc-windows-msvc/release/studio-app.exe $stage
+          Copy-Item catalog/config.json, catalog/catalog.json, catalog/hyper-media-puller.json "$stage/catalog"
+          $zip = Join-Path $output 'Studio-App-windows-x64.zip'
+          Compress-Archive -LiteralPath $stage -DestinationPath $zip
+          $digest = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$digest  Studio-App-windows-x64.zip" | Set-Content "$output/SHA256SUMS.txt" -Encoding ascii
+      - name: Smoke test the extracted package
+        shell: pwsh
+        working-directory: ${{ runner.temp }}
+        run: |
+          Expand-Archive -LiteralPath studio-beta/Studio-App-windows-x64.zip -DestinationPath extracted
+          $app = Join-Path $PWD 'extracted/Studio App'
+          $env:STUDIO_APP_CACHE_DIR = Join-Path $env:RUNNER_TEMP 'studio-test-cache'
+          $process = Start-Process -FilePath "$app/studio-app.exe" -ArgumentList '--check-catalog catalog/config.json' -WorkingDirectory $app -PassThru -Wait
+          if ($process.ExitCode -ne 0) { exit $process.ExitCode }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Studio-App-windows-x64
+          path: ${{ runner.temp }}/studio-beta/*
+          if-no-files-found: error
