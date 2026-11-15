@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use std::{
     collections::HashSet,
     fs::{self, File},
-    io::{Read, Write},
+    io::Read,
     path::Path,
 };
 
@@ -169,6 +169,7 @@ pub(crate) fn validate(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
     use serde_json::json;
 
     fn stage() -> tempfile::TempDir {
