@@ -60,6 +60,35 @@ fn install_launch_cleanup(format: PackageFormat) {
 fn real_https_zip_install_detect_launch_cleanup() {
     install_launch_cleanup(PackageFormat::Zip);
 }
+#[test]
+fn cancelled_download_can_be_retried_without_an_installation_left_behind() {
+    let fixture = fixture(PackageFormat::Zip);
+    let plan = fixture.plan().unwrap();
+    let rules = fixture.app.detection.as_ref().unwrap();
+    let cancellation = Cancellation::default();
+    let error = worker::run(
+        &plan,
+        &Https::new(&plan).unwrap(),
+        &cancellation,
+        &mut |progress| {
+            if progress.phase == Phase::Downloading {
+                cancellation.cancel();
+            }
+        },
+    )
+    .unwrap_err();
+    assert!(error.retryable);
+    assert!(native::detect(rules).installations.is_empty());
+    let report = worker::run(
+        &plan,
+        &Https::new(&plan).unwrap(),
+        &Cancellation::default(),
+        &mut |_| {},
+    )
+    .unwrap();
+    assert_eq!(report.installations.len(), 1);
+    fixture.cleanup().unwrap();
+}
 #[cfg(target_os = "macos")]
 #[test]
 fn real_readonly_dmg_install_detect_launch_cleanup() {

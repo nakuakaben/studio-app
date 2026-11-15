@@ -32,8 +32,17 @@ pub struct ManualRelease {
     pub application_id: String,
     /// Exact validated GitHub release page, not an executable URL.
     pub page: String,
-    targets: Vec<(Os, Architecture)>,
+    targets: Vec<DiscoveredInstaller>,
     macos_beta_cores: HashSet<(u64, u64, u64)>,
+}
+/// Display metadata from GitHub. Only the approved catalogue can supply a Package.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DiscoveredInstaller {
+    pub os: Os,
+    pub architecture: Architecture,
+    pub filename: String,
+    pub size_bytes: u64,
+    pub sha256: String,
 }
 impl ManualRelease {
     pub fn version_is_ambiguous(&self, os: &Os, installed: &str) -> bool {
@@ -43,7 +52,12 @@ impl ManualRelease {
             })
     }
     pub fn supports(&self, os: &Os, arch: &Architecture) -> bool {
-        self.targets.iter().any(|(o, a)| o == os && a == arch)
+        self.installer(os, arch).is_some()
+    }
+    pub fn installer(&self, os: &Os, arch: &Architecture) -> Option<&DiscoveredInstaller> {
+        self.targets
+            .iter()
+            .find(|asset| asset.os == *os && asset.architecture == *arch)
     }
 }
 
@@ -90,6 +104,7 @@ fn inspect(source: &Source, bytes: &[u8]) -> Result<Option<(AppMetadata, ManualR
                     sync::expand(&installer.filename, &v.to_string(), &release.tag_name).ok()?;
                 let mut matches = release.assets.iter().filter(|asset| asset.name == name);
                 let asset = matches.next()?;
+                let sha256 = asset.digest.as_deref()?.strip_prefix("sha256:")?;
                 if matches.next().is_some()
                     || asset.state != "uploaded"
                     || asset.id == 0
@@ -97,22 +112,24 @@ fn inspect(source: &Source, bytes: &[u8]) -> Result<Option<(AppMetadata, ManualR
                     || asset.size > sync::MAX_PACKAGE
                     || asset.browser_download_url
                         != format!("{repository}/releases/download/v{v}/{name}")
-                    || !asset
-                        .digest
-                        .as_deref()
-                        .and_then(|s| s.strip_prefix("sha256:"))
-                        .is_some_and(|s| crate::installer::approval::unhex(s, 32).is_ok())
+                    || crate::installer::approval::unhex(sha256, 32).is_err()
                 {
                     return None;
                 }
-                Some((installer.os.clone(), installer.architecture.clone()))
+                Some(DiscoveredInstaller {
+                    os: installer.os.clone(),
+                    architecture: installer.architecture.clone(),
+                    filename: name,
+                    size_bytes: asset.size,
+                    sha256: sha256.to_ascii_lowercase(),
+                })
             })
             .collect();
         if targets.len() != source.installers.len() {
             // Wait for the complete configured release; do not announce an update unavailable on a target.
             continue;
         }
-        if !v.pre.is_empty() && targets.iter().any(|(os, _)| *os == Os::Macos) {
+        if !v.pre.is_empty() && targets.iter().any(|asset| asset.os == Os::Macos) {
             macos_beta_cores.insert((v.major, v.minor, v.patch));
         }
         let published = time::OffsetDateTime::parse(
@@ -298,6 +315,22 @@ mod tests {
         assert_eq!(app.release.version, "0.1.0-beta.2");
         assert!(app.release.packages.is_empty());
         assert!(action.supports(&Os::Macos, &Architecture::Aarch64));
+        let mac = action
+            .installer(&Os::Macos, &Architecture::Aarch64)
+            .unwrap();
+        let windows = action
+            .installer(&Os::Windows, &Architecture::X86_64)
+            .unwrap();
+        assert_eq!(mac.filename, "HMP-V2-0.1.0-beta.2-macos-arm64.dmg");
+        assert_eq!(
+            windows.filename,
+            "HMP-V2-0.1.0-beta.2-windows-x64-setup.exe"
+        );
+        assert_eq!(windows.sha256, "ab".repeat(32));
+        assert_eq!(mac.size_bytes, 1000);
+        assert!(action
+            .installer(&Os::Windows, &Architecture::Aarch64)
+            .is_none());
         assert!(action.version_is_ambiguous(&Os::Macos, "0.1.0"));
         assert!(!action.version_is_ambiguous(&Os::Macos, "0.1.0-beta.1"));
         assert!(!action.version_is_ambiguous(&Os::Windows, "0.1.0"));

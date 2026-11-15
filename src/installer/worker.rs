@@ -15,7 +15,11 @@ impl Drop for Job {
         self.cancel.cancel();
     }
 }
-pub fn spawn(application: AppMetadata, repaint: impl Fn() + Send + 'static) -> Job {
+pub fn spawn(
+    application: AppMetadata,
+    expected_destination: std::path::PathBuf,
+    repaint: impl Fn() + Send + 'static,
+) -> Job {
     let (sender, receiver) = mpsc::sync_channel(16);
     let cancel = Cancellation::default();
     let cancellation = cancel.clone();
@@ -27,15 +31,12 @@ pub fn spawn(application: AppMetadata, repaint: impl Fn() + Send + 'static) -> J
         };
         emit(Progress::phase(Phase::Authorizing));
         let result = (|| {
-            let (policy, root) = approval::default_policy()?;
-            let (os, arch) = platform().ok_or_else(|| {
-                Failure::permanent("Installation native non prise en charge sur cet OS/CPU")
-            })?;
-            let now = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map_err(|_| Failure::permanent("Horloge système invalide"))?
-                .as_secs();
-            let plan = approval::authorize(&app, &policy, &root, now, &os, &arch)?;
+            let plan = authorized_plan(&app)?;
+            if platform::destination(&plan)? != expected_destination {
+                return Err(Failure::permanent(
+                    "Destination d’installation modifiée. Rouvrez la fenêtre de confirmation.",
+                ));
+            }
             run(
                 &plan,
                 &download::Https::new(&plan)?,
@@ -52,6 +53,31 @@ pub fn spawn(application: AppMetadata, repaint: impl Fn() + Send + 'static) -> J
         cancel,
     }
 }
+fn authorized_plan(app: &AppMetadata) -> Result<Plan> {
+    let (policy, root) = approval::default_policy()?;
+    let (os, arch) = platform().ok_or_else(|| {
+        Failure::permanent("Installation native non prise en charge sur cet OS/CPU")
+    })?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|_| Failure::permanent("Horloge système invalide"))?
+        .as_secs();
+    approval::authorize(app, &policy, &root, now, &os, &arch)
+}
+
+/// Read-only authorization check for the confirmation dialog. Starting still reauthorizes.
+pub fn preview(
+    application: AppMetadata,
+    repaint: impl FnOnce() + Send + 'static,
+) -> Receiver<Result<std::path::PathBuf>> {
+    let (sender, receiver) = mpsc::channel();
+    std::thread::spawn(move || {
+        let result = authorized_plan(&application).and_then(|plan| platform::destination(&plan));
+        let _ = sender.send(result);
+        repaint();
+    });
+    receiver
+}
 pub fn run(
     plan: &Plan,
     http: &dyn download::Transport,
@@ -59,6 +85,7 @@ pub fn run(
     emit: &mut impl FnMut(Progress),
 ) -> Result<native::Report> {
     cancel.check()?;
+    platform::destination(plan)?;
     if plan
         .app
         .detection
