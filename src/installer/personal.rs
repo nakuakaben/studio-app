@@ -131,11 +131,11 @@ fn bundled_session_policy() -> Result<(Policy, PathBuf)> {
 pub(super) fn local_policy() -> Result<(Policy, PathBuf)> {
     // Advanced operator provisioning remains supported, but is never required
     // by a user running the packaged launcher.
-    let (policy, root) = if let Some(path) = std::env::var_os(POLICY_ENV)
-        .map(PathBuf::from)
-    {
+    let (policy, root) = if let Some(path) = std::env::var_os(POLICY_ENV).map(PathBuf::from) {
         if !path.is_absolute() {
-            return Err(Failure::permanent("Le chemin de la politique HMP doit être absolu."));
+            return Err(Failure::permanent(
+                "Le chemin de la politique HMP doit être absolu.",
+            ));
         }
         approval::read_policy(path)?
     } else {

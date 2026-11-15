@@ -347,7 +347,8 @@ fn installation_summary(ui: &mut egui::Ui, app: &Application, authorization: &Au
                 ui.label(mono("INSTALLATION PERSONNELLE — ACCORD REQUIS"));
                 ui.small("HMP est épinglé dans Studio App (URL, taille, SHA-256). La politique Ed25519 de session ne certifie pas l’éditeur. macOS/Windows peuvent refuser l’ouverture.");
                 if let Some(key) = &confirmation.key {
-                    ui.label("Clé publique temporaire de cette session").on_hover_text(key);
+                    ui.label("Clé publique temporaire de cette session")
+                        .on_hover_text(key);
                 }
             }
             ui.label(mono("DOSSIER D’INSTALLATION APPROUVÉ"));
