@@ -104,10 +104,43 @@ pub fn check_discovery(
     }
 }
 
+/// The reviewed release is pinned in this binary (identity, URL, size, SHA-256).
+/// This ephemeral Ed25519 policy records *local user consent*, not publisher
+/// identity. It is never used to authorize arbitrary catalogue discoveries.
+/// The private key is never written to disk or shipped with Studio App.
+fn bundled_session_policy() -> Result<(Policy, PathBuf)> {
+    static SESSION_POLICY: std::sync::OnceLock<Result<Vec<u8>>> = std::sync::OnceLock::new();
+    let bytes = SESSION_POLICY
+        .get_or_init(|| {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_err(|_| Failure::permanent("Horloge système invalide."))?
+                .as_secs();
+            let key = Ed25519KeyPair::generate_pkcs8(&SystemRandom::new())
+                .map_err(|_| Failure::permanent("Impossible de préparer l'autorisation locale."))?;
+            let policy = make_policy(key.as_ref(), now, now + 7 * 86400)?;
+            Ok(serde_json::to_vec(&policy)?)
+        })
+        .clone()?;
+    let policy = serde_json::from_slice(&bytes)?;
+    // The personal profile does not read files relative to policy_root.
+    // Keep this path non-privileged and never create any file here.
+    Ok((policy, std::env::temp_dir()))
+}
+
 pub(super) fn local_policy() -> Result<(Policy, PathBuf)> {
-    let path = std::env::var_os(POLICY_ENV).map(PathBuf::from).filter(|p| p.is_absolute())
-        .ok_or_else(|| Failure::permanent("Mode personnel inactif. Configurez une politique Ed25519 locale avec STUDIO_APP_PERSONAL_INSTALLER_POLICY."))?;
-    let (policy, root) = approval::read_policy(path)?;
+    // Advanced operator provisioning remains supported, but is never required
+    // by a user running the packaged launcher.
+    let (policy, root) = if let Some(path) = std::env::var_os(POLICY_ENV)
+        .map(PathBuf::from)
+    {
+        if !path.is_absolute() {
+            return Err(Failure::permanent("Le chemin de la politique HMP doit être absolu."));
+        }
+        approval::read_policy(path)?
+    } else {
+        bundled_session_policy()?
+    };
     if !matches!(policy.deployment, Deployment::PersonalHmp) {
         return Err(Failure::permanent(
             "Politique locale du profil personal_hmp requise.",
@@ -223,6 +256,34 @@ mod tests {
         assert!(select(&app, &Os::Windows, &Architecture::Aarch64).is_err());
         assert!(make_policy(key.as_ref(), 100, 99).is_err());
         assert!(make_policy(key.as_ref(), 100, 100 + 31 * 86400).is_err());
+    }
+
+    #[test]
+    fn bundled_session_policy_needs_no_cargo_or_external_key_file() {
+        let (policy, root) = bundled_session_policy().unwrap();
+        assert!(matches!(policy.deployment, Deployment::PersonalHmp));
+        assert_eq!(policy.keys.len(), 1);
+        assert_eq!(policy.approvals.len(), 2);
+        let (same_policy, _) = bundled_session_policy().unwrap();
+        assert_eq!(
+            serde_json::to_vec(&policy).unwrap(),
+            serde_json::to_vec(&same_policy).unwrap()
+        );
+        let app = application().unwrap();
+        let plan = approval::authorize(
+            &app,
+            &policy,
+            &root,
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+            &Os::Macos,
+            &Architecture::Aarch64,
+        )
+        .unwrap();
+        assert!(matches!(plan.recipe, Recipe::PersonalHmpDmg));
+        assert!(matches_package(&app, &plan.package));
     }
 
     #[test]
