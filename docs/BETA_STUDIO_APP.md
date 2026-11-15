@@ -16,6 +16,37 @@ le binaire Windows est sans Authenticode. Les systèmes peuvent bloquer leur
 ouverture. Pour une publication signée, utiliser les signatures de l’éditeur
 et valider la notarisation macOS sur les fichiers à publier.
 
+## Qualification des artefacts
+
+- Télécharger les deux artefacts du workflow **Studio App beta packages**
+  sur le SHA à qualifier. Extraire les enveloppes ZIP de GitHub Actions et
+  vérifier les paquets avec leur fichier `SHA256SUMS.txt` respectif.
+- Le DMG contient `Studio App.app` avec un exécutable Mach-O arm64. Le ZIP
+  Windows contient `Studio App/studio-app.exe`, un exécutable PE x64. Chaque
+  paquet contient les fichiers `config.json`, `catalog.json` et
+  `hyper-media-puller.json`. La fiche HMP est résolue à partir de cette
+  configuration et des métadonnées publiques GitHub. Les installateurs de
+  HMP restent dans sa release.
+- Sur macOS, la CI monte le DMG en lecture seule et vérifie la signature ad
+  hoc du bundle. Sur Windows, elle extrait le ZIP. Chaque job exécute le
+  binaire distribué avec `--check-catalog`, sans Cargo dans le PATH, depuis
+  un dossier extérieur au paquet et sans fournir de chemin de configuration.
+  Ce test utilise la même recherche de configuration que l’interface au
+  démarrage. Il valide la lecture du catalogue et le code de sortie du
+  programme.
+
+### Essais interactifs sur poste physique
+
+- Démarrer le DMG téléchargé depuis le Finder sur un Mac Apple Silicon,
+  puis démarrer l’application copiée dans Applications. Vérifier le
+  comportement de Gatekeeper et la présence de HMP dans la bibliothèque.
+- Extraire le ZIP téléchargé sur un poste Windows x64, ouvrir
+  `studio-app.exe` depuis l’Explorateur et vérifier l’affichage de la
+  bibliothèque et le comportement de SmartScreen.
+- Sur les deux postes, vérifier que le bouton ouvre la bonne release HMP.
+  Après installation manuelle de HMP, vérifier sa détection et son ouverture
+  depuis Studio App. Documenter les résultats séparément des tests CI.
+
 ## Préparer une publication
 
 1. Exécuter le workflow **Studio App beta packages**. Il produit les deux

@@ -6,6 +6,8 @@ on:
     paths:
       - '.github/workflows/studio-app-beta.yml'
       - 'scripts/package-beta-macos.sh'
+      - 'src/main.rs'
+      - 'src/catalog/loader.rs'
       - 'catalog/config.json'
       - 'catalog/catalog.json'
       - 'catalog/hyper-media-puller.json'
@@ -35,8 +37,9 @@ jobs:
           trap 'hdiutil detach "$mount"' EXIT
           app="$mount/Studio App.app"
           codesign --verify --strict "$app"
-          STUDIO_APP_CACHE_DIR="$RUNNER_TEMP/studio-test-cache" \
-            "$app/Contents/MacOS/studio-app" --check-catalog "$app/Contents/catalog/config.json"
+          test -s "$app/Contents/catalog/hyper-media-puller.json"
+          env -u STUDIO_APP_CONFIG PATH=/usr/bin:/bin STUDIO_APP_CACHE_DIR="$RUNNER_TEMP/studio-test-cache" \
+            "$app/Contents/MacOS/studio-app" --check-catalog
       - uses: actions/upload-artifact@v4
         with:
           name: Studio-App-macos-arm64
@@ -63,15 +66,20 @@ jobs:
           $zip = Join-Path $output 'Studio-App-windows-x64.zip'
           Compress-Archive -LiteralPath $stage -DestinationPath $zip
           $digest = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$digest  Studio-App-windows-x64.zip" | Set-Content "$output/SHA256SUMS.txt" -Encoding ascii
+          [IO.File]::WriteAllText("$output/SHA256SUMS.txt", "$digest  Studio-App-windows-x64.zip`n")
       - name: Smoke test the extracted package
         shell: pwsh
         working-directory: ${{ runner.temp }}
         run: |
           Expand-Archive -LiteralPath studio-beta/Studio-App-windows-x64.zip -DestinationPath extracted
           $app = Join-Path $PWD 'extracted/Studio App'
+          if (-not (Test-Path -LiteralPath "$app/catalog/hyper-media-puller.json" -PathType Leaf)) {
+            throw 'Missing bundled Hyper Media Puller definition'
+          }
+          Remove-Item Env:STUDIO_APP_CONFIG -ErrorAction SilentlyContinue
           $env:STUDIO_APP_CACHE_DIR = Join-Path $env:RUNNER_TEMP 'studio-test-cache'
-          $process = Start-Process -FilePath "$app/studio-app.exe" -ArgumentList '--check-catalog catalog/config.json' -WorkingDirectory $app -PassThru -Wait
+          $env:Path = "$env:SystemRoot\System32;$env:SystemRoot"
+          $process = Start-Process -FilePath "$app/studio-app.exe" -ArgumentList '--check-catalog' -WorkingDirectory $PWD.Path -PassThru -Wait
           if ($process.ExitCode -ne 0) { exit $process.ExitCode }
       - uses: actions/upload-artifact@v4
         with:
