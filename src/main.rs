@@ -60,6 +60,7 @@ fn main() -> eframe::Result<()> {
         eframe::NativeOptions {
             viewport: eframe::egui::ViewportBuilder::default()
                 .with_inner_size([1440.0, 960.0])
+                .with_icon(std::sync::Arc::new(studio_app::brand::icon_data()))
                 .with_min_inner_size([440.0, 560.0]),
             ..Default::default()
         },

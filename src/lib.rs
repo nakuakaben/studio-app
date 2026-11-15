@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+pub mod brand;
 pub mod catalog;
 pub mod demo;
 pub mod domain;

@@ -101,4 +101,4 @@ Linux. Les PR visent `dev` ; aucune fusion ni release automatique.
 
 Par défaut, seules les applications réelles publiées au catalogue sont visibles. Les huit fiches fictives sont conservées pour la QA mais masquées ; **Réglages → Bibliothèque → Afficher les applications de démonstration** permet de les réactiver. La préférence est conservée dans `ui-preferences.json` ; les anciens fichiers de préférences restent compatibles et choisissent le mode réel.
 
-L'emblème de Studio App est défini dans `assets/brand/studio-app.svg` et repris dans l'en-tête. L'intégration des icônes natives des packages et la signature finale restent à qualifier avant publication.
+L'emblème de Studio App est défini dans `assets/brand/studio-app.svg` et repris dans l'en-tête. Le logo est également utilisé pour l'icône de fenêtre native. Le DMG macOS embarque un fichier ICNS généré automatiquement. Sous Windows, l'icône de fenêtre est disponible ; l'icône embarquée dans les ressources PE et la signature finale restent à qualifier avant publication.
