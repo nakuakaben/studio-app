@@ -44,6 +44,7 @@ pub enum Phase {
     Downloading,
     Verifying,
     Preparing,
+    AwaitingConsent,
     Installing,
     Detecting,
 }
@@ -54,6 +55,7 @@ impl Phase {
             Self::Downloading => "TÉLÉCHARGEMENT",
             Self::Verifying => "VÉRIFICATION DU PACKAGE",
             Self::Preparing => "PRÉPARATION",
+            Self::AwaitingConsent => "CONFIRMATION DE L’INSTALLATEUR WINDOWS",
             Self::Installing => "INSTALLATION NATIVE",
             Self::Detecting => "DÉTECTION APRÈS INSTALLATION",
         }
@@ -130,18 +132,16 @@ pub fn select(app: &AppMetadata, os: &Os, arch: &Architecture) -> Result<Package
     let supported = |p: &&Package| {
         p.os == *os
             && p.architecture == *arch
-            && matches!(
+            && (matches!(
                 (&p.os, &p.format),
                 (Os::Macos, PackageFormat::Zip | PackageFormat::Dmg)
                     | (Os::Windows, PackageFormat::Zip)
-            )
+            ) || (p.format == PackageFormat::Exe && super::personal::matches_package(app, p)))
     };
     let mut candidates = app.release.packages.iter().filter(supported);
-    let package = candidates.next().ok_or_else(|| {
-        Failure::permanent(
-            "Aucun package compatible pris en charge. PKG/MSI/EXE restent désactivés.",
-        )
-    })?;
+    let package = candidates
+        .next()
+        .ok_or_else(|| Failure::permanent("Aucun package compatible pris en charge."))?;
     if candidates.next().is_some() {
         return Err(Failure::permanent(
             "Sélection ambiguë : publier un seul package compatible par plateforme/architecture.",
@@ -161,6 +161,8 @@ pub fn can_request(app: &AppMetadata) -> bool {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Recipe {
+    PersonalHmpDmg,
+    PersonalHmpNsis,
     MacBundle {
         bundle_name: String,
         team_id: Option<String>,
@@ -196,6 +198,7 @@ pub struct TrustedKey {
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Deployment {
     Production,
+    PersonalHmp,
     LocalFixture {
         root: std::path::PathBuf,
         token: String,

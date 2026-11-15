@@ -5,6 +5,8 @@ pub mod download;
 #[cfg(feature = "installer-fixtures")]
 pub mod fixture;
 pub mod model;
+pub mod personal;
+mod personal_native;
 pub mod platform;
 pub mod worker;
 pub use model::{Cancellation, Failure, Phase, Progress, Result};

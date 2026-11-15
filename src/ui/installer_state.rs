@@ -1,13 +1,15 @@
 use super::*;
 use crate::catalog::model::{Architecture, Os};
-use crate::installer::{self, worker::Event as InstallEvent};
-use std::path::PathBuf;
+use crate::installer::{
+    self,
+    worker::{Confirmation, Event as InstallEvent},
+};
 
-pub(super) const HMP_ID: &str = "hyper-media-puller";
+pub(super) use installer::personal::HMP_ID;
 
 enum Authorization {
-    Pending(Receiver<installer::Result<PathBuf>>),
-    Ready(PathBuf),
+    Pending(Receiver<installer::Result<Confirmation>>),
+    Ready(Confirmation),
     Blocked(installer::Failure),
 }
 
@@ -17,25 +19,21 @@ pub(super) struct InstallDialog {
     authorization: Authorization,
     cancelling: bool,
     completed: bool,
+    acknowledged: bool,
+    consent_sent: bool,
 }
 
-fn availability(app: &Application, target: Option<&(Os, Architecture)>) -> installer::Result<()> {
+fn availability(app: &Application, target: Option<&(Os, Architecture)>) -> installer::Result<bool> {
     let Some((os, arch)) = target else {
         return Err(installer::Failure::permanent(
             "Installation native indisponible sur cette plateforme.",
         ));
     };
     if let Some(release) = &app.manual_release {
-        if release.installer(os, arch).is_none() {
-            return Err(installer::Failure::permanent(
-                "Aucun installateur publié pour ce système et cette architecture.",
-            ));
-        }
-        return Err(installer::Failure::permanent(
-            "Installation intégrée bloquée. Ce package GitHub n’a pas d’approbation Ed25519 de production ni de signature éditeur qualifiée. Studio App ne lance aucun transfert.",
-        ));
+        return installer::personal::check_discovery(&app.metadata, release, os, arch)
+            .map(|_| true);
     }
-    installer::model::select(&app.metadata, os, arch).map(|_| ())
+    installer::model::select(&app.metadata, os, arch).map(|_| false)
 }
 
 impl StudioApp {
@@ -49,10 +47,11 @@ impl StudioApp {
             return;
         }
         let authorization = match availability(app, installer::model::platform().as_ref()) {
-            Ok(()) => {
+            Ok(personal) => {
                 let ctx = ctx.clone();
                 Authorization::Pending(installer::worker::preview(
                     app.metadata.clone(),
+                    personal,
                     move || {
                         ctx.request_repaint();
                     },
@@ -66,17 +65,24 @@ impl StudioApp {
             authorization,
             cancelling: false,
             completed: false,
+            acknowledged: false,
+            consent_sent: false,
         });
     }
 
-    fn start_installation(&mut self, ctx: &egui::Context, index: usize, destination: PathBuf) {
+    fn start_installation(
+        &mut self,
+        ctx: &egui::Context,
+        index: usize,
+        confirmation: Confirmation,
+    ) {
         let app = &mut self.apps[index];
         app.operation =
             Operation::Native(installer::Progress::phase(installer::Phase::Authorizing));
         let ctx = ctx.clone();
         self.installer_job = Some(installer::worker::spawn(
             app.metadata.clone(),
-            destination,
+            confirmation,
             move || ctx.request_repaint(),
         ));
     }
@@ -108,6 +114,8 @@ impl StudioApp {
         }
         let app = &self.apps[index];
         let busy = self.installer_job.is_some();
+        let awaiting = matches!(&app.operation, Operation::Native(progress)
+            if progress.phase == installer::Phase::AwaitingConsent);
         let (bg, border, muted, blue) = theme::palette(ctx);
         let mut close = false;
         let mut start = None;
@@ -131,9 +139,15 @@ impl StudioApp {
                     .show(ui, |ui| {
                         egui::Frame::new().inner_margin(20).show(ui, |ui| {
                             installation_summary(ui, app, &dialog.authorization);
+                            if matches!(&dialog.authorization, Authorization::Ready(c) if c.personal)
+                                && !busy && !dialog.completed {
+                                ui.checkbox(&mut dialog.acknowledged, "J’approuve l’installation personnelle de ce package HMP.");
+                            }
                             if let Operation::Native(progress) = &app.operation {
                                 ui.label(mono(progress.phase.label()).color(blue));
-                                if progress.total > 0 {
+                                if awaiting {
+                                    ui.label("L’installateur NSIS va s’ouvrir avec les contrôles de Windows. Choisissez un dossier vide.");
+                                } else if progress.total > 0 {
                                     let counter = format!(
                                         "{:.1} / {:.1} Mo",
                                         progress.bytes as f64 / 1_000_000.0,
@@ -180,14 +194,23 @@ impl StudioApp {
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                             if dialog.completed {
                                 open = primary(ui, "OUVRIR", 128.0).clicked();
+                            } else if awaiting {
+                                if ui.add_enabled_ui(!dialog.cancelling && !dialog.consent_sent, |ui| {
+                                    primary(ui, "OUVRIR NSIS", 150.0)
+                                }).inner.clicked() {
+                                    if let Some(job) = &self.installer_job {
+                                        dialog.consent_sent = job.consent.try_send(()).is_ok();
+                                    }
+                                }
                             } else if matches!(&dialog.authorization, Authorization::Blocked(e) if e.retryable) {
                                 recheck = primary(ui, "RÉESSAYER", 128.0).clicked();
                             } else {
                                 let retry = matches!(&app.operation, Operation::NativeError(e) if e.retryable);
                                 let terminal = matches!(&app.operation, Operation::NativeError(e) if !e.retryable);
-                                let ready = matches!(&dialog.authorization, Authorization::Ready(_));
+                                let ready = matches!(&dialog.authorization, Authorization::Ready(c) if !c.personal || dialog.acknowledged);
+                                let personal = matches!(&dialog.authorization, Authorization::Ready(c) if c.personal);
                                 let clicked = ui.add_enabled_ui(ready && !busy && !terminal && !app.installed(), |ui| {
-                                    primary(ui, if retry { "RÉESSAYER" } else { "INSTALLER" }, 128.0)
+                                    primary(ui, if retry { "RÉESSAYER" } else if personal { "TÉLÉCHARGER" } else { "INSTALLER" }, 150.0)
                                 }).inner.clicked();
                                 if clicked {
                                     if let Authorization::Ready(path) = &dialog.authorization {
@@ -206,6 +229,8 @@ impl StudioApp {
         } else if !close && (busy || !modal.should_close()) {
             if let Some(destination) = start {
                 dialog.cancelling = false;
+                dialog.consent_sent = false;
+                dialog.acknowledged = false;
                 self.start_installation(ctx, index, destination);
             }
             self.install_dialog = Some(dialog);
@@ -317,9 +342,16 @@ fn installation_summary(ui: &mut egui::Ui, app: &Application, authorization: &Au
             ui.spinner();
             ui.label("Vérification de l’approbation locale…");
         }
-        Authorization::Ready(path) => {
+        Authorization::Ready(confirmation) => {
+            if confirmation.personal {
+                ui.label(mono("INSTALLATION PERSONNELLE APPROUVÉE"));
+                ui.small("Cette approbation Ed25519 locale est distincte des contrôles de sécurité de macOS ou Windows.");
+                if let Some(key) = &confirmation.key {
+                    ui.label("Clé publique locale").on_hover_text(key);
+                }
+            }
             ui.label(mono("DOSSIER D’INSTALLATION APPROUVÉ"));
-            ui.label(path.display().to_string());
+            ui.label(confirmation.destination.display().to_string());
         }
         Authorization::Blocked(error) => {
             ui.colored_label(Color32::LIGHT_RED, &error.message);

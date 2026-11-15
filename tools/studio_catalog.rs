@@ -18,6 +18,20 @@ fn catalog(path: &str) -> Result<Catalog> {
 }
 fn run(args: &[String]) -> Result<()> {
     match args {
+        [cmd,output] if cmd=="personal-keygen" => {
+            studio_app::installer::personal::generate_key(Path::new(output))
+                .map_err(|e| Error::invalid(&e.message))?;
+            println!("Clé privée générée localement. Conservez-la hors dépôt.");
+        }
+        [cmd,key,expires,output] if cmd=="personal-hmp" => {
+            use studio_app::installer::personal;
+            let key = catalog::cache::read_bounded(Path::new(key), 4096)?;
+            let expiry = expires.parse::<u64>().map_err(|_| Error::invalid("Expiration Unix requise"))?;
+            let policy = personal::make_policy(&key, now()?, expiry).map_err(|e| Error::invalid(&e.message))?;
+            let bytes = serde_json::to_vec_pretty(&policy)?;
+            personal::write_new(Path::new(output), &bytes).map_err(|e| Error::invalid(&e.message))?;
+            println!("Politique HMP personnelle créée, avec la seule clé publique. Aucun paquet téléchargé.");
+        }
         [cmd,registry,baseline,output] if cmd=="sync"=> {
             let registry:Registry=dist::read(Path::new(registry))?;sync::validate(&registry)?;
             let api=Github::new(std::env::var("STUDIO_CATALOG_GITHUB_TOKEN").ok().filter(|token|!token.is_empty()))?;
@@ -41,7 +55,7 @@ fn run(args: &[String]) -> Result<()> {
         }
         [cmd,registry,baseline,proposal,candidate,approvals,trust] if cmd=="verify"=> verify(registry,baseline,proposal,candidate,approvals,trust,Environment::Production)?,
         [cmd,registry,baseline,proposal,candidate,approvals,trust,flag] if cmd=="verify"&&flag=="--test"=> verify(registry,baseline,proposal,candidate,approvals,trust,Environment::Test)?,
-        _=>return Err(Error::invalid("Usage : studio-catalog sync <registry> <baseline> <proposal-output> | validate <registry> <baseline> <proposal> | request <registry> <baseline> <proposal> <app-id> <package-id> <expires-unix> <body-output> | sign <body> <private-pkcs8> <key-id> <approval-output> | verify <registry> <baseline> <proposal> <candidate> <approvals> <trust> [--test]")),
+        _=>return Err(Error::invalid("Usage : studio-catalog personal-keygen <private-pkcs8> | personal-hmp <private-pkcs8> <expires-unix> <policy-output> | sync <registry> <baseline> <proposal-output> | validate <registry> <baseline> <proposal> | request <registry> <baseline> <proposal> <app-id> <package-id> <expires-unix> <body-output> | sign <body> <private-pkcs8> <key-id> <approval-output> | verify <registry> <baseline> <proposal> <candidate> <approvals> <trust> [--test]")),
     }
     Ok(())
 }

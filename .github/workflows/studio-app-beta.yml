@@ -15,6 +15,8 @@ on:
       - 'src/installer/**'
       - 'src/ui/installer_state.rs'
       - 'platform/windows-host/**'
+      - 'src/native/**'
+      - 'Cargo.lock'
       - 'catalog/config.json'
       - 'catalog/catalog.json'
       - 'catalog/hyper-media-puller.json'

@@ -1,74 +1,115 @@
 # Hyper Media Puller dans Studio App
 
-HMP est le premier logiciel réel référencé dans la configuration par défaut.
-La [bêta publique v0.1.0-beta.1](https://github.com/nakuakaben/hyper-media-puller/releases/tag/v0.1.0-beta.1)
-fournit un DMG pour macOS Apple Silicon et un installateur NSIS pour Windows x64.
-Le catalogue de démonstration est masqué par défaut.
+HMP est la première application de la bibliothèque. Studio App détecte les
+releases publiques du dépôt configuré et propose le lien officiel pour
+l’installation manuelle et les mises à jour. Les applications de démonstration
+sont masquées par défaut.
 
-Au démarrage et à l’actualisation du catalogue, Studio App interroge l’API
-publique du seul dépôt configuré dans `catalog/hyper-media-puller.json`. La
-dernière version SemVer complète est proposée dès que GitHub la publie : les
-brouillons, releases sans date, assets manquants, noms ou sources inattendus
-et digests SHA-256 invalides sont ignorés. Un cache conserve la dernière
-réponse valide en cas de panne réseau. Une application inscrite directement
-dans le catalogue de distribution garde la priorité sur cette fiche locale.
+## Installation personnelle
 
-**INSTALLER** ouvre la fenêtre **Installer HMP**. Elle sélectionne l’asset
-correspondant au système et à l’architecture et affiche son nom, sa taille
-et la destination usuelle. Windows utilise l’architecture native du système
-pour refuser ARM64 même si le launcher x64 s’exécute par émulation. Aucun
-asset n’est proposé sur Mac Intel, Windows ARM64 ou Linux.
+Ce profil est désactivé par défaut. Il accepte exclusivement les deux artefacts
+épinglés de [HMP v0.1.0-beta.1](https://github.com/nakuakaben/hyper-media-puller/releases/tag/v0.1.0-beta.1).
+Une nouvelle release reste disponible par le lien officiel jusqu’à ce que ses
+artefacts et sa recette soient examinés et épinglés. Les digests GitHub ne
+constituent aucune autorisation. Le profil de production reste distinct et inactif.
 
-Pour la bêta actuelle, le téléchargement intégré est bloqué. Le bouton
-**Ouvrir la release officielle** ouvre la page de la version exacte sur
-GitHub. Utiliser le guide et le manifeste SHA-256 joints à cette version.
-Après une installation manuelle, actualiser la bibliothèque
-pour détecter HMP. Une version locale comparée comme plus ancienne affiche
-**MISE À JOUR ↗** ; quitter HMP après la fin des transferts et suivre le
-guide du nouvel installateur. Studio App ne ferme ni ne remplace HMP.
+| Cible | Asset approuvable | SHA-256 |
+| --- | --- | --- |
+| macOS Apple Silicon | `HMP-V2-0.1.0-beta.1-macos-arm64.dmg` | `19626af397aa54318b2adc6b03287fc224f9790e6b18eb54233a9d3514ab6097` |
+| Windows x64 | `HMP-V2-0.1.0-beta.1-windows-x64-setup.exe` | `d35dcb98366c1bd4b0f44ef1e250159175dbee2e388c215094a173bde1a2255e` |
 
-La détection vise l’édition publique : bundle
-`fr.tktprod.hyperdeck-media-puller.v2.preview` dans `HMP.app` sur macOS,
-identité NSIS `HMP` / `tktprod` et exécutable `hmp-v2-preview.exe`
-sur Windows. L’édition interne a un autre identifiant de bundle et ne doit
-pas être reconnue comme une installation publique. La détection Windows est
-dérivée de la configuration et du modèle NSIS Tauri ; le test de ce raccord
-sur une installation Windows réelle reste à faire.
+### Générer sa politique locale
 
-Le DMG public testé annonce `0.1.0` dans le bundle, même pour
-`0.1.0-beta.1`. Si la version locale ne contient pas de suffixe et
-correspond à une série bêta publiée connue, Studio App indique **BÊTA NON
-IDENTIFIÉE** et propose **VERSIONS ↗** sur macOS. Une prochaine bêta devrait
-exposer sa version de release complète dans une métadonnée de bundle fiable
-pour distinguer ses révisions lors de la détection.
+Depuis le dépôt source, sur macOS par exemple, créer un dossier privé en dehors
+du dépôt. Choisir un fichier de sortie neuf et vérifier les empreintes des
+artefacts avant de signer. La durée maximale de génération est de 30 jours.
 
-## Approbation et validation
+```sh
+umask 077
+mkdir -p "$HOME/.studio-hmp-personal"
+studio_hmp_dir="$HOME/.studio-hmp-personal"
+studio_hmp_expires=$(($(date +%s) + 7 * 86400))
+cargo run --locked --bin studio-catalog -- personal-keygen "$studio_hmp_dir/hmp.key"
+cargo run --locked --bin studio-catalog -- personal-hmp "$studio_hmp_dir/hmp.key" "$studio_hmp_expires" "$studio_hmp_dir/policy.json"
+STUDIO_APP_PERSONAL_INSTALLER_POLICY="$studio_hmp_dir/policy.json" cargo run --locked --bin studio-app
+```
 
-Les métadonnées publiques sont distinctes des packages approuvés et ne
-déclenchent aucun téléchargement dans Studio App. Lorsqu’un package pris
-en charge figure dans un catalogue explicite, la fenêtre contrôle la
-politique locale en arrière-plan. Le moteur revérifie la signature Ed25519,
-les métadonnées exactes, l’expiration et la destination confirmée avant le
-transfert. Le profil isolé `installer-fixtures` permet de tester les octets
-réellement reçus, l’annulation avant la pose, la reprise par une nouvelle
-tentative, la détection et **OUVRIR**. Il utilise une application de test
-signée par une clé éphémère, un serveur HTTPS loopback et une destination
-réservée. Voir [le protocole de test](ETAPE_4.md).
+Pour lancer l’application packagée depuis le même shell, appeler son exécutable
+`Studio App.app/Contents/MacOS/studio-app` par son chemin absolu avec la même
+variable. L’ouverture habituelle depuis le Finder continue d’utiliser le profil
+public.
 
-| Cible | Mécanisme et prérequis pour la production |
-| --- | --- |
-| macOS Apple Silicon | DMG monté en lecture seule dans un point privé, bundle `HMP.app` vérifié avant copie sans remplacement sous `~/Applications`. L’éditeur doit fournir un bundle signé Developer ID avec un Team ID réel, une notarisation valide et une métadonnée signée qui identifie la révision complète. Qualifier le contrôle système de cette identité et de Gatekeeper sur le package final. La bêta actuelle est ad hoc et déclare seulement `0.1.0`. |
-| Windows x64 | Le NSIS public est interactif, par utilisateur, avec destination par défaut dans `%LOCALAPPDATA%` et choix dans l’installateur. WebView2 Evergreen est requis. L’éditeur doit fournir l’installateur et les binaires signés Authenticode. Qualifier la vérification Windows de la chaîne de confiance et du signataire attendu avant tout lancement, puis la détection par clé HKCU, identité, version complète et chemin réel. Aucun switch silencieux ou paramètre de destination n’est supposé. Le NSIS et les binaires actuels sont sans Authenticode. |
+Sous Windows, l’équivalent PowerShell depuis le dépôt est le suivant.
 
-Les deux cibles nécessitent une approbation Ed25519 de production qui lie
-la version, l’asset exact, l’URL, le SHA-256 et la recette validée. Les
-empreintes GitHub attestent l’intégrité des octets publiés. Aucun certificat
-de test ni aucune clé privée ne doit être déployé en production. Le moteur
-refuse encore le profil de production et les exécutables NSIS, y compris
-avant transfert. L’interface ne propose aucun sélecteur libre tant qu’une
-recette approuvée ne peut pas appliquer ce choix.
+```pwsh
+$studioHmpDir = Join-Path $env:USERPROFILE '.studio-hmp-personal'
+New-Item -ItemType Directory -Path $studioHmpDir -Force | Out-Null
+$studioHmpKey = Join-Path $studioHmpDir 'hmp.key'
+$studioHmpPolicy = Join-Path $studioHmpDir 'policy.json'
+$studioHmpExpires = [DateTimeOffset]::UtcNow.AddDays(7).ToUnixTimeSeconds()
+cargo run --locked --bin studio-catalog -- personal-keygen $studioHmpKey
+cargo run --locked --bin studio-catalog -- personal-hmp $studioHmpKey $studioHmpExpires $studioHmpPolicy
+$env:STUDIO_APP_PERSONAL_INSTALLER_POLICY = $studioHmpPolicy
+cargo run --locked --bin studio-app
+```
 
-Les essais Windows du moteur portent sur un ZIP portable de test et sa
-clé HKCU dédiée. L’installation et la redétection du véritable NSIS HMP
-restent à qualifier sur un Windows x64 isolé. La mise à jour intégrée reste
-hors du parcours validé.
+Une fois la politique créée, il est aussi possible de lancer `studio-app.exe`
+extrait du ZIP depuis ce PowerShell. Conserver la clé privée hors du dépôt et
+hors du dossier distribué. Le JSON contient la clé **publique** et les
+approbations signées. La variable exige un chemin absolu et doit être définie
+pour le seul processus d’essai. Retirer la variable ou déplacer la politique
+empêche les nouveaux transferts et les nouvelles poses. Les commandes refusent
+d’écraser un fichier auparavant créé. Pour renouveler la politique, utiliser un
+nouveau chemin de sortie et le sélectionner explicitement.
+
+### Installer et vérifier
+
+Ouvrir **Installer HMP**, vérifier la version, la cible, le fichier et la clé
+publique locale, cocher l’accord et cliquer **Télécharger**. Studio App vérifie
+l’approbation avant le téléchargement HTTPS et de nouveau avant la pose ou
+l’exécution. Le transfert vérifie la taille et le SHA-256. Il n’accepte qu’un
+saut vers le fichier précis du CDN officiel GitHub. L’annulation est possible
+avant la copie finale ou avant l’ouverture du NSIS.
+
+- **macOS ARM64.** Le DMG est monté en lecture seule. Studio App contrôle le
+  bundle `HMP.app`, son identité et sa signature de code, conserve ou ajoute
+  le marquage de quarantaine et pose le bundle sans remplacement sous
+  `~/Applications`. La signature ad hoc est admise uniquement dans ce profil.
+  La redétection annonce la version déclarée par le bundle. Pour cet asset,
+  `0.1.0` laisse la révision bêta indéterminée. **Ouvrir** délègue à
+  LaunchServices. En cas de refus, consulter la décision de macOS et, si
+  l’option est autorisée par sa politique, suivre la procédure de consentement
+  officielle. [Ouverture d’apps sur macOS](https://support.apple.com/fr-fr/102445)
+- **Windows x64.** Après le transfert et le contrôle PE, **Ouvrir NSIS** exige
+  un second accord. Le fichier conserve sa marque Internet. Le service natif
+  des pièces jointes Windows lance le NSIS interactif, sans arguments
+  silencieux ni demande d’élévation forcée. Choisir un dossier vide dans NSIS.
+  WebView2 Evergreen reste un prérequis indiqué par le guide de la release.
+  Studio App attend l’installateur et exige une entrée HKCU HMP avec l’éditeur,
+  le chemin, l’exécutable et la version approuvée. Une installation concurrente
+  hors de Studio App ou un ancien dossier non enregistré choisi dans NSIS
+  relèvent du contrôle du poste et de l’installateur. [Service d’exécution des pièces jointes Windows](https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nf-shobjidl_core-iattachmentexecute-execute)
+
+L’approbation locale n’est pas une notarisation Apple ni une signature
+Authenticode. La release officielle reste le repli en cas de refus ou
+d’absence de politique. Si une installation est déjà détectée, **Ouvrir**
+reste disponible. La mise à jour et la désinstallation intégrées sont hors
+de ce parcours.
+
+## Validation
+
+- Les tests hors ligne couvrent les signatures locales, l’expiration, les
+  mutations d’URL, de taille et d’empreinte, le refus des autres architectures,
+  les redirections et les fixtures d’installation isolées.
+- Un essai macOS ARM64 volontaire consulte GitHub, télécharge et vérifie le
+  vrai DMG avec une clé éphémère, pose le bundle dans une racine temporaire,
+  puis contrôle la redétection et la quarantaine. Il n’ouvre pas HMP.
+
+```sh
+cargo test --locked --lib approved_public_hmp_dmg_installs_and_detects_without_touching_applications -- --ignored
+```
+
+- Essai interactif Windows restant à qualifier sur une VM x64 propre avec
+  consentement explicite. Vérifier l’avertissement du système, le comportement
+  avec ou sans WebView2, le résultat NSIS et la clé HKCU après installation.
+  Les fixtures ZIP de la CI exercent le moteur natif sans exécuter le NSIS HMP.

@@ -35,6 +35,16 @@ pub fn default_policy() -> Result<(Policy, PathBuf)> {
                 .map(|d| d.config_dir().join("installer-policy.json"))
         })
         .ok_or_else(|| Failure::permanent("Configuration d’installation indisponible"))?;
+    let (policy, root) = read_policy(path)?;
+    if matches!(policy.deployment, Deployment::PersonalHmp) {
+        return Err(Failure::permanent(
+            "Le profil personnel exige sa variable de configuration dédiée.",
+        ));
+    }
+    Ok((policy, root))
+}
+
+pub(super) fn read_policy(path: PathBuf) -> Result<(Policy, PathBuf)> {
     let path = path.canonicalize().map_err(|_| {
         Failure::permanent(
             "Installation non activée : installer-policy.json local de confiance manquant.",
@@ -105,6 +115,9 @@ pub fn authorize(
     }
     let (recipe,expires_unix)=accepted.ok_or_else(||Failure::permanent("Package sans approbation signée par une clé locale de confiance. Aucun téléchargement effectué."))?;
     match (&recipe, os) {
+        (Recipe::PersonalHmpDmg, Os::Macos) | (Recipe::PersonalHmpNsis, Os::Windows)
+            if matches!(policy.deployment, Deployment::PersonalHmp)
+                && super::personal::matches_package(app, &package) => {}
         (Recipe::MacBundle { bundle_name, .. }, Os::Macos) => {
             simple_name(bundle_name)?;
             if !bundle_name.ends_with(".app")
@@ -163,6 +176,13 @@ fn validate_deployment(
 ) -> Result<()> {
     match deployment {
         Deployment::Production => Err(Failure::permanent("Déploiement de production désactivé : une publication signée/notarisée de notre gamme doit d’abord être validée. Seul le profil de test isolé est activé dans cette étape.")),
+        Deployment::PersonalHmp => {
+            if !matches!(recipe, Recipe::PersonalHmpDmg | Recipe::PersonalHmpNsis)
+                || serde_json::to_vec(app)? != serde_json::to_vec(&super::personal::application()?)? {
+                return Err(Failure::permanent("Le profil personnel accepte uniquement les métadonnées HMP épinglées et leur recette dédiée."));
+            }
+            Ok(())
+        }
         Deployment::LocalFixture{root,token,tls_certificate,port}=> {
             if !cfg!(feature="installer-fixtures") {return Err(Failure::permanent("Profil de test absent de ce binaire"));}
             if token.len()!=16 || !token.bytes().all(|b|b.is_ascii_hexdigit()) || app.id!=format!("studio-installer-fixture-{token}") || app.release.version!="0.0.1" || *port==0 {return Err(Failure::permanent("Profil réservé au logiciel de test isolé 0.0.1"));}
@@ -178,6 +198,8 @@ fn validate_deployment(
                     let win=app.detection.as_ref().and_then(|r|r.windows.as_ref()).ok_or_else(||Failure::permanent("Identité de test manquante"))?;
                     if directory_name!="StudioInstallerFixture" || authenticode_thumbprint.is_some() || win.uninstall_key!=format!("StudioAppInstallerTest-{token}") || win.publisher!="Studio App Installer Test" || win.executable!="studio-installer-probe.exe" {return Err(Failure::permanent("Identité Windows de test incorrecte"));}
                 }
+                Recipe::PersonalHmpDmg | Recipe::PersonalHmpNsis =>
+                    return Err(Failure::permanent("Recette personnelle interdite dans une fixture.")),
             }
             Ok(())
         }

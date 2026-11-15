@@ -76,7 +76,10 @@ pub(crate) fn command(
     })
 }
 #[cfg(target_os = "macos")]
-fn require_success(output: std::process::Output, what: &str) -> Result<std::process::Output> {
+pub(super) fn require_success(
+    output: std::process::Output,
+    what: &str,
+) -> Result<std::process::Output> {
     if output.status.success() {
         Ok(output)
     } else {
@@ -93,10 +96,15 @@ fn leaf(plan: &Plan) -> &str {
     match &plan.recipe {
         Recipe::MacBundle { bundle_name, .. } => bundle_name,
         Recipe::WindowsPortable { directory_name, .. } => directory_name,
+        Recipe::PersonalHmpDmg => "HMP.app",
+        Recipe::PersonalHmpNsis => "HMP",
     }
 }
 
 pub(crate) fn destination(plan: &Plan) -> Result<PathBuf> {
+    if matches!(plan.deployment, Deployment::PersonalHmp) {
+        return super::personal_native::destination(&plan.recipe);
+    }
     let Deployment::LocalFixture { root, token, .. } = &plan.deployment else {
         return Err(Failure::permanent("Installation de production désactivée"));
     };
@@ -202,12 +210,22 @@ fn verify_payload(plan: &Plan, root: &Path) -> Result<()> {
             )
             .map_err(Failure::permanent)?;
         }
+        Recipe::PersonalHmpDmg | Recipe::PersonalHmpNsis => {
+            return Err(Failure::permanent("Recette personnelle hors fixture."));
+        }
     }
     Ok(())
 }
 
 #[cfg(target_os = "macos")]
 fn mounted_copy(package: &Path, stage: &Path, bundle: &str, cancel: &Cancellation) -> Result<()> {
+    with_mounted(package, |mount| {
+        archive::copy_tree(&mount.join(bundle), &stage.join(bundle), cancel)
+    })
+}
+
+#[cfg(target_os = "macos")]
+pub(super) fn with_mounted<T>(package: &Path, read: impl FnOnce(&Path) -> Result<T>) -> Result<T> {
     let mount = tempfile::Builder::new()
         .prefix("studio-readonly-dmg-")
         .tempdir()?;
@@ -244,7 +262,7 @@ fn mounted_copy(package: &Path, stage: &Path, bundle: &str, cancel: &Cancellatio
             "DMG corrompu, chiffré ou montage refusé",
         ));
     }
-    let copied = archive::copy_tree(&mount.path().join(bundle), &stage.join(bundle), cancel);
+    let copied = read(mount.path());
     let detached = command(
         "/usr/bin/hdiutil",
         &["detach".as_ref(), mount.path().as_os_str()],

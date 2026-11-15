@@ -26,6 +26,45 @@ pub struct Https {
     client: reqwest::blocking::Client,
     url: url::Url,
 }
+
+const RELEASE_CDN: &str = "release-assets.githubusercontent.com";
+
+#[cfg(test)]
+#[test]
+fn personal_download_follows_only_the_matching_https_cdn_hop() {
+    let initial = url::Url::parse("https://github.com/nakuakaben/hyper-media-puller/releases/download/v0.1.0-beta.1/package.dmg").unwrap();
+    let path = "/github-production-release-asset/1452735481/id";
+    let valid = url::Url::parse(&format!("https://{RELEASE_CDN}{path}?token=opaque")).unwrap();
+    let history = [initial.clone()];
+    assert!(personal_redirect(&initial, path, &history, &valid));
+    for candidate in [
+        "http://release-assets.githubusercontent.com/github-production-release-asset/1452735481/id",
+        "https://release-assets.githubusercontent.com/github-production-release-asset/1452735481/other",
+        "https://release-assets.githubusercontent.com.evil.example/github-production-release-asset/1452735481/id",
+        "https://name@release-assets.githubusercontent.com/github-production-release-asset/1452735481/id",
+    ] {
+        assert!(!personal_redirect(&initial, path, &history, &url::Url::parse(candidate).unwrap()));
+    }
+    assert!(!personal_redirect(
+        &initial,
+        path,
+        &[initial.clone(), valid.clone()],
+        &valid
+    ));
+}
+
+fn personal_redirect(
+    initial: &url::Url,
+    expected_path: &str,
+    previous: &[url::Url],
+    next: &url::Url,
+) -> bool {
+    previous == [initial.clone()]
+        && next.host_str() == Some(RELEASE_CDN)
+        && next.path() == expected_path
+        && security::https_url(next.as_str()).is_ok()
+}
+
 impl Https {
     pub fn new(plan: &Plan) -> Result<Self> {
         let url = security::https_url(&plan.package.url)
@@ -45,6 +84,38 @@ impl Https {
                 let addresses = security::public_addresses(&url)
                     .map_err(|e| Failure::permanent(e.to_string()))?;
                 builder = builder.resolve_to_addrs(host, &addresses);
+            }
+            Deployment::PersonalHmp => {
+                if !super::personal::matches_package(&plan.app, &plan.package) {
+                    return Err(Failure::permanent("Source HMP personnelle incorrecte."));
+                }
+                let asset = match plan.recipe {
+                    Recipe::PersonalHmpDmg => "fa7b29e5-938b-43e1-8854-c885df3864d6",
+                    Recipe::PersonalHmpNsis => "fc6bc5d2-d89c-4f01-9109-5fd8c6793018",
+                    _ => return Err(Failure::permanent("Recette HMP incompatible.")),
+                };
+                let expected_path = format!("/github-production-release-asset/1452735481/{asset}");
+                let cdn = url::Url::parse(&format!("https://{RELEASE_CDN}/"))
+                    .map_err(|_| Failure::permanent("CDN HMP invalide."))?;
+                let public = |url: &url::Url| {
+                    security::public_addresses(url).map_err(|e| Failure::retry(e.to_string()))
+                };
+                let initial_url = url.clone();
+                builder = builder
+                    .resolve_to_addrs(host, &public(&url)?)
+                    .resolve_to_addrs(RELEASE_CDN, &public(&cdn)?)
+                    .redirect(reqwest::redirect::Policy::custom(move |attempt| {
+                        if personal_redirect(
+                            &initial_url,
+                            &expected_path,
+                            attempt.previous(),
+                            attempt.url(),
+                        ) {
+                            attempt.follow()
+                        } else {
+                            attempt.error("Redirection GitHub HMP non autorisée")
+                        }
+                    }));
             }
             Deployment::LocalFixture {
                 tls_certificate,
@@ -161,9 +232,12 @@ pub fn download(
     cancel: &Cancellation,
     emit: &mut impl FnMut(Progress),
 ) -> Result<VerifiedDownload> {
-    let mut file = tempfile::Builder::new()
-        .prefix("studio-approved-package-")
-        .tempfile()?;
+    let mut builder = tempfile::Builder::new();
+    builder.prefix("studio-approved-package-");
+    if matches!(plan.recipe, Recipe::PersonalHmpNsis) {
+        builder.suffix(".exe");
+    }
+    let mut file = builder.tempfile()?;
     let mut offset = 0;
     let total = plan.package.size_bytes;
     let mut etag = None;

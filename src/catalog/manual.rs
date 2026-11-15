@@ -213,6 +213,11 @@ fn definition(bytes: &[u8]) -> Result<Source> {
     Ok(source)
 }
 
+pub(crate) fn bundled_hmp(release: Release) -> Result<AppMetadata> {
+    let source = definition(include_bytes!("../../catalog/hyper-media-puller.json"))?;
+    Ok(source.metadata.application(source.github, release, vec![]))
+}
+
 pub(super) fn enrich(
     settings: &Settings,
     loaded: &mut super::loader::Loaded,
