@@ -26,7 +26,7 @@ pub fn local_path(path: &Path) -> bool {
         path.is_absolute()
     }
 }
-fn pe(path: &Path) -> Result<(), String> {
+pub(crate) fn pe(path: &Path) -> Result<(), String> {
     let mut file = File::open(path).map_err(|e| e.to_string())?;
     let mut header = [0; 64];
     file.read_exact(&mut header).map_err(|e| e.to_string())?;
@@ -50,6 +50,25 @@ fn pe(path: &Path) -> Result<(), String> {
         return Err("Exécutable PE requis (DLL refusée)".into());
     }
     Ok(())
+}
+
+#[cfg(windows)]
+pub(crate) fn uninstall_key_exists(rule: &WindowsRule) -> Result<bool, std::io::Error> {
+    use winreg::{enums::*, RegKey};
+    let path = format!(
+        r"Software\Microsoft\Windows\CurrentVersion\Uninstall\{}",
+        rule.uninstall_key
+    );
+    for hive in [HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE] {
+        for view in [KEY_WOW64_64KEY, KEY_WOW64_32KEY] {
+            match RegKey::predef(hive).open_subkey_with_flags(&path, KEY_QUERY_VALUE | view) {
+                Ok(_) => return Ok(true),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => return Err(error),
+            }
+        }
+    }
+    Ok(false)
 }
 pub fn inspect(rule: &WindowsRule, record: &Record) -> Result<Installation, String> {
     if record.key != rule.uninstall_key || record.publisher != rule.publisher {

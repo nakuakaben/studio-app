@@ -494,6 +494,9 @@ pub fn cleanup_policy(path: &Path) -> Result<()> {
     let leaf = match &plan.recipe {
         Recipe::MacBundle { bundle_name, .. } => bundle_name,
         Recipe::WindowsPortable { directory_name, .. } => directory_name,
+        Recipe::PersonalHmpDmg | Recipe::PersonalHmpNsis => {
+            return Err(Failure::permanent("Recette personnelle hors fixture"));
+        }
     };
     for entry in fs::read_dir(&root)? {
         let name = entry?.file_name();

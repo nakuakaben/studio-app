@@ -36,7 +36,7 @@ pub fn launch(rules: &DetectionRules, installation: &Installation) -> Result<(),
             loop {
                 if let Some(status) = child.try_wait().map_err(|e| e.to_string())? {
                     if !status.success() {
-                        return Err(format!("LaunchServices a refusé le lancement ({status})"));
+                        return Err(format!("LaunchServices a refusé le lancement ({status}). Si macOS affiche une alerte, consultez la procédure Apple : https://support.apple.com/fr-fr/102445"));
                     }
                     break;
                 }
