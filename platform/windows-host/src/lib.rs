@@ -40,7 +40,7 @@ pub fn execute_attachment(path: &std::path::Path, _source: &str) -> Result<u32, 
                 Threading::{GetExitCodeProcess, WaitForSingleObject, INFINITE},
             },
             UI::Shell::{
-                ShellExecuteExW, SHELLEXECUTEINFOW, SEE_MASK_NOCLOSEPROCESS, SEE_MASK_NOASYNC,
+                ShellExecuteExW, SEE_MASK_NOASYNC, SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW,
             },
         },
     };
