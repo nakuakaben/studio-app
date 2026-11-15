@@ -26,6 +26,7 @@ pub struct StudioApp {
     launch_job: Option<Receiver<(String, Result<(), String>)>>,
     native_status: String,
     installer_job: Option<crate::installer::worker::Job>,
+    install_dialog: Option<installer_state::InstallDialog>,
     query: String,
     sort: Sort,
     preferences: Preferences,
@@ -96,6 +97,7 @@ impl StudioApp {
             launch_job: None,
             native_status: String::new(),
             installer_job: None,
+            install_dialog: None,
             query: String::new(),
             sort: preferences.sort,
             preferences,
@@ -164,12 +166,12 @@ impl StudioApp {
         }
     }
 
-    fn action(&mut self, index: usize) {
+    fn action(&mut self, ctx: &egui::Context, index: usize) {
         if !self.apps[index].fictional {
             if self.apps[index].installed() {
                 self.open_application(index);
             } else {
-                self.start_installation(index);
+                self.request_installation(ctx, index);
             }
         } else if self.apps[index].state() == AppState::Installed {
             self.notice = Some(format!(
@@ -213,6 +215,7 @@ impl StudioApp {
         if self.settings_open {
             self.settings(ctx);
         }
+        self.installation_dialog(ctx);
     }
 
     fn details(&mut self, ctx: &egui::Context, index: usize) {
@@ -294,7 +297,7 @@ impl StudioApp {
             self.navigate(true);
         }
         if action {
-            self.action(index);
+            self.action(ctx, index);
         }
         self.dispatch(ctx, index, native_action);
     }

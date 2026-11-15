@@ -30,6 +30,7 @@ time = { version = "0.3", features = ["parsing"] }
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"
+studio-windows-host = { path = "platform/windows-host" }
 
 [profile.release]
 strip = true

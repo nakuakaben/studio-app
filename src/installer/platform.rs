@@ -96,6 +96,13 @@ fn leaf(plan: &Plan) -> &str {
     }
 }
 
+pub(crate) fn destination(plan: &Plan) -> Result<PathBuf> {
+    let Deployment::LocalFixture { root, token, .. } = &plan.deployment else {
+        return Err(Failure::permanent("Installation de production désactivée"));
+    };
+    Ok(approval::fixture_root(root, token)?.join(leaf(plan)))
+}
+
 pub(crate) fn prepare(
     plan: &Plan,
     package: &VerifiedDownload,

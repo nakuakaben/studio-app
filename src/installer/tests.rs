@@ -388,10 +388,12 @@ fn symlink_archive_rejected() {
     .is_err());
 }
 #[test]
-fn invalid_package_never_reaches_native_installation() {
+fn blocked_production_plan_never_opens_a_transfer() {
     let p = plan(b"not a ZIP");
     let http = Mock::new(vec![Ok(response(b"not a ZIP"))]);
-    assert!(worker::run(&p, &http, &Cancellation::default(), &mut |_| {}).is_err());
+    let error = worker::run(&p, &http, &Cancellation::default(), &mut |_| {}).unwrap_err();
+    assert!(error.message.contains("production désactivée"));
+    assert!(http.requests.borrow().is_empty());
 }
 #[test]
 fn verified_temp_removed_after_preparation_failure() {

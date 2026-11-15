@@ -317,7 +317,7 @@ impl StudioApp {
     pub(super) fn dispatch(&mut self, ctx: &egui::Context, index: usize, action: Option<Action>) {
         match action {
             Some(Action::Details) => self.select(index),
-            Some(Action::Run) => self.action(index),
+            Some(Action::Run) => self.action(ctx, index),
             Some(Action::OfficialInstaller) => {
                 if let Some(page) = self.apps[index].manual_installer_page() {
                     ctx.open_url(egui::OpenUrl::new_tab(page));
@@ -770,6 +770,10 @@ pub(super) fn actions(ui: &mut egui::Ui, app: &Application, action: &mut Option<
                         .clicked()
                 {
                     *action = Some(if manual {Action::OfficialInstaller} else {Action::Run});
+                }
+            } else if !app.fictional && app.id == super::installer_state::HMP_ID {
+                if primary(ui, "INSTALLER", width).clicked() {
+                    *action = Some(Action::Run);
                 }
             } else if app.manual_installer_page().is_some() {
                 if primary(ui,"INSTALLATEUR ↗",width).on_hover_text("Ouvrir la release officielle et suivre le guide d’installation").clicked() {

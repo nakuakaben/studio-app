@@ -101,21 +101,25 @@ impl Cancellation {
 }
 
 pub fn platform() -> Option<(Os, Architecture)> {
-    let os = if cfg!(target_os = "macos") {
-        Os::Macos
-    } else if cfg!(windows) {
-        Os::Windows
-    } else {
-        return None;
-    };
-    let arch = if cfg!(target_arch = "aarch64") {
-        Architecture::Aarch64
-    } else if cfg!(target_arch = "x86_64") {
-        Architecture::X86_64
-    } else {
-        return None;
-    };
-    Some((os, arch))
+    #[cfg(windows)]
+    {
+        let arch = match studio_windows_host::architecture()? {
+            studio_windows_host::Architecture::X86_64 => Architecture::X86_64,
+            studio_windows_host::Architecture::Aarch64 => Architecture::Aarch64,
+        };
+        Some((Os::Windows, arch))
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let arch = match std::env::consts::ARCH {
+            "aarch64" => Architecture::Aarch64,
+            "x86_64" => Architecture::X86_64,
+            _ => return None,
+        };
+        Some((Os::Macos, arch))
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
+    None
 }
 pub fn select(app: &AppMetadata, os: &Os, arch: &Architecture) -> Result<Package> {
     if app.fictional || app.detection.is_none() {
