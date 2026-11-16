@@ -11,6 +11,8 @@ pub mod platform;
 #[allow(dead_code)]
 // Staged validator: activate only after a separately approved portable release exists.
 mod portable_manifest;
+#[allow(dead_code)]
+mod portable_transaction;
 pub mod worker;
 pub use model::{Cancellation, Failure, Phase, Progress, Result};
 
