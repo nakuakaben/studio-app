@@ -78,12 +78,11 @@ pub(crate) fn commit(
                 &uninterrupted,
             )?;
         }
-        portable_manifest::validate(
+        portable_manifest::validate_pending(
             &target,
             application_id,
             version,
             executable,
-            &uninterrupted,
         )?;
         // The identity marker is removed last. Readers must reject a directory
         // while the marker exists.
