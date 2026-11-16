@@ -109,6 +109,35 @@ pub(crate) fn validate(
     executable: &str,
     cancel: &Cancellation,
 ) -> Result<()> {
+    validate_internal(root, app_id, version, executable, cancel, false)
+}
+
+/// Only the transaction engine may validate an installation with its pending
+/// marker still present. A normal package can never contain this marker.
+pub(super) fn validate_pending(
+    root: &Path,
+    app_id: &str,
+    version: &str,
+    executable: &str,
+) -> Result<()> {
+    validate_internal(
+        root,
+        app_id,
+        version,
+        executable,
+        &Cancellation::default(),
+        true,
+    )
+}
+
+fn validate_internal(
+    root: &Path,
+    app_id: &str,
+    version: &str,
+    executable: &str,
+    cancel: &Cancellation,
+    allow_pending: bool,
+) -> Result<()> {
     if !fs::symlink_metadata(root)?.is_dir() {
         return Err(Failure::permanent("Dossier portable invalide."));
     }
@@ -140,6 +169,18 @@ pub(crate) fn validate(
     archive::safe_entry(&format!("HMP/{}", manifest.executable), "HMP")?;
     let mut observed = HashSet::new();
     walk(root, root, &mut observed)?;
+    if allow_pending {
+        let pending = root.join(PENDING_MARKER);
+        if !observed.remove(PENDING_MARKER) || fs::read(&pending)? != app_id.as_bytes() {
+            return Err(Failure::permanent(
+                "Marqueur de transaction absent ou invalide.",
+            ));
+        }
+    } else if observed.contains(PENDING_MARKER) {
+        return Err(Failure::permanent(
+            "Un marqueur de transaction ne peut pas figurer dans un package.",
+        ));
+    }
     if !observed.remove(MANIFEST) || observed.len() != manifest.files.len() {
         return Err(Failure::permanent(
             "Arborescence portable différente du manifeste.",
