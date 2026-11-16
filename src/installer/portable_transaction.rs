@@ -46,7 +46,9 @@ pub(crate) fn commit(
         Err(e) => return Err(e.into()),
     }
     if app_root.canonicalize()? != app_root {
-        return Err(Failure::permanent("Dossier de l'application non canonique."));
+        return Err(Failure::permanent(
+            "Dossier de l'application non canonique.",
+        ));
     }
     let target = app_root.join(version);
     // Atomic reservation: no pre-existing destination is modified or removed.
@@ -59,7 +61,10 @@ pub(crate) fn commit(
     })?;
     let result = (|| {
         let marker = target.join(PENDING_MARKER);
-        let mut file = OpenOptions::new().write(true).create_new(true).open(&marker)?;
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&marker)?;
         file.write_all(application_id.as_bytes())?;
         file.sync_all()?;
         // Once reserved, copy without observing cancellation: an interruption
@@ -72,18 +77,9 @@ pub(crate) fn commit(
                 name.to_str()
                     .ok_or_else(|| Failure::permanent("Nom de fichier non Unicode."))?,
             )?;
-            archive::copy_tree(
-                &entry.path(),
-                &target.join(name),
-                &uninterrupted,
-            )?;
+            archive::copy_tree(&entry.path(), &target.join(name), &uninterrupted)?;
         }
-        portable_manifest::validate_pending(
-            &target,
-            application_id,
-            version,
-            executable,
-        )?;
+        portable_manifest::validate_pending(&target, application_id, version, executable)?;
         // The identity marker is removed last. Readers must reject a directory
         // while the marker exists.
         fs::remove_file(marker)?;
@@ -126,7 +122,11 @@ mod tests {
                 "sha256": super::super::approval::hex(&Sha256::digest(b"portable binary"))
             }]
         });
-        fs::write(source.join("studio-portable.json"), serde_json::to_vec(&manifest).unwrap()).unwrap();
+        fs::write(
+            source.join("studio-portable.json"),
+            serde_json::to_vec(&manifest).unwrap(),
+        )
+        .unwrap();
         source
     }
     #[test]
@@ -136,16 +136,26 @@ mod tests {
         fs::create_dir(&root).unwrap();
         let source = payload(d.path(), "0.1.0-beta.1");
         let target = commit(
-            &source, "hyper-media-puller", "0.1.0-beta.1", "hmp-v2-preview.exe",
-            &root, &Cancellation::default(),
-        ).unwrap();
+            &source,
+            "hyper-media-puller",
+            "0.1.0-beta.1",
+            "hmp-v2-preview.exe",
+            &root,
+            &Cancellation::default(),
+        )
+        .unwrap();
         assert!(target.join("hmp-v2-preview.exe").is_file());
         assert!(!target.join(PENDING_MARKER).exists());
         fs::write(target.join("user-content.txt"), b"keep").unwrap();
         assert!(commit(
-            &source, "hyper-media-puller", "0.1.0-beta.1", "hmp-v2-preview.exe",
-            &root, &Cancellation::default(),
-        ).is_err());
+            &source,
+            "hyper-media-puller",
+            "0.1.0-beta.1",
+            "hmp-v2-preview.exe",
+            &root,
+            &Cancellation::default(),
+        )
+        .is_err());
         assert_eq!(fs::read(target.join("user-content.txt")).unwrap(), b"keep");
     }
     #[test]
@@ -156,9 +166,14 @@ mod tests {
         let source = payload(d.path(), "0.1.0-beta.1");
         fs::write(source.join("hmp-v2-preview.exe"), b"changed").unwrap();
         assert!(commit(
-            &source, "hyper-media-puller", "0.1.0-beta.1", "hmp-v2-preview.exe",
-            &root, &Cancellation::default(),
-        ).is_err());
+            &source,
+            "hyper-media-puller",
+            "0.1.0-beta.1",
+            "hmp-v2-preview.exe",
+            &root,
+            &Cancellation::default(),
+        )
+        .is_err());
         assert!(!root.join("hyper-media-puller/0.1.0-beta.1").exists());
     }
 }

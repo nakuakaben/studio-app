@@ -171,9 +171,7 @@ fn validate_internal(
     walk(root, root, &mut observed)?;
     if allow_pending {
         let pending = root.join(PENDING_MARKER);
-        if !observed.remove(PENDING_MARKER)
-            || fs::read(&pending)? != app_id.as_bytes()
-        {
+        if !observed.remove(PENDING_MARKER) || fs::read(&pending)? != app_id.as_bytes() {
             return Err(Failure::permanent(
                 "Marqueur de transaction absent ou invalide.",
             ));
